@@ -16,6 +16,7 @@ import inspect
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch
+from torch import einsum
 from packaging import version
 from transformers import CLIPImageProcessor, CLIPTextModel, CLIPTokenizer
 
@@ -27,6 +28,7 @@ from ...models.lora import adjust_lora_scale_text_encoder
 from ...schedulers import KarrasDiffusionSchedulers
 from ...utils import deprecate, logging, replace_example_docstring, scale_lora_layers, unscale_lora_layers
 from ...utils.torch_utils import randn_tensor
+from ...utils.self_guidance_utils import register_attention_layers_recr, self_guidance_loss
 from ..pipeline_utils import DiffusionPipeline
 from .pipeline_output import StableDiffusionPipelineOutput
 from .safety_checker import StableDiffusionSafetyChecker
@@ -586,6 +588,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         guidance_rescale: float = 0.0,
         clip_skip: Optional[int] = None,
+        self_guidance_scale: float = 7500.0,
+        self_guidance_dict: dict = None,
     ):
         r"""
         The call function to the pipeline for generation.
@@ -677,6 +681,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
         # corresponds to doing no classifier free guidance.
         do_classifier_free_guidance = guidance_scale > 1.0
+        do_self_guidance = (self_guidance_scale > 0.0 and len(self_guidance_dict) > 0)
 
         # 3. Encode input prompt
         text_encoder_lora_scale = (
@@ -698,6 +703,11 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # to avoid doing two forward passes
         if do_classifier_free_guidance:
             prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+
+        # Save attn maps to get loss later
+        attn_controls = []
+        if do_self_guidance:
+            register_attention_layers_recr(self.unet, attn_controls)
 
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
@@ -737,13 +747,30 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 )[0]
 
                 # perform guidance
+                scaled_guidance_funcs = []
+
+                # self guidance attn maps
+                attn_maps = []
+                sg_loss = 0
+
+                if do_self_guidance:
+                    for recorder in attn_controls:
+                        attn_map = einsum('b i d, b j d -> b i j', recorder.q, recorder.k)
+                        attn_maps.append(attn_map)
+
+                    sg_loss = self_guidance_loss(attn_maps, self_guidance_dict) * self_guidance_scale
+                    sg_loss.backward()  # todo check
+                    scaled_guidance_funcs.append(latent_model_input.grad)
+
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                    noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+                    scaled_guidance_funcs.append(guidance_scale * (noise_pred_text - noise_pred_uncond))
 
-                if do_classifier_free_guidance and guidance_rescale > 0.0:
-                    # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
-                    noise_pred = rescale_noise_cfg(noise_pred, noise_pred_text, guidance_rescale=guidance_rescale)
+                noise_pred = noise_pred_uncond + sum(scaled_guidance_funcs)
+
+                # if do_classifier_free_guidance and guidance_rescale > 0.0:  todo bring this stuff back
+                #     # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
+                #     noise_pred = rescale_noise_cfg(noise_pred, noise_pred_text, guidance_rescale=guidance_rescale)
 
                 # compute the previous noisy sample x_t -> x_t-1
                 latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
