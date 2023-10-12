@@ -1758,7 +1758,7 @@ class DiffusionPipeline(ConfigMixin, PushToHubMixin):
 
             pipeline_class = getattr(diffusers, cls_name, None)
 
-            if pipeline_class is not None and pipeline_class._load_connected_pipes:
+            if pipeline_class is not None:
                 modelcard = ModelCard.load(os.path.join(cached_folder, "README.md"))
                 connected_pipes = sum([getattr(modelcard.data, k, []) for k in CONNECTED_PIPES_KEYS], [])
                 for connected_pipe_repo_id in connected_pipes:

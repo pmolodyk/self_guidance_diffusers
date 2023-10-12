@@ -61,46 +61,16 @@ class MapsRecorder:
         self.q = None
         self.k = None
 
-def register_to_layer(maps_recorder, cross_attn_layer):
-    def replacement_forward(x, context=None):
-        self_attn_marker = False
-
-        h = cross_attn_layer.heads
-
-        q = cross_attn_layer.to_q(x)
-        if context is None:
-            context = x
-            self_attn_marker = True
-        k = cross_attn_layer.to_k(context)
-        v = cross_attn_layer.to_v(context)
-
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
-
-        sim = einsum('b i d, b j d -> b i j', q, k) * cross_attn_layer.scale
-
-        # attention, what we cannot get enough of
-        attn = sim.softmax(dim=-1)
-
-        out = einsum('b i j, b j d -> b i d', attn, v)
-        out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
-
-        maps_recorder.stored_q = q
-        maps_recorder.stored_k = k
-        maps_recorder.stored_v = v
-        maps_recorder.self_attn_marker = self_attn_marker
-        return cross_attn_layer.to_out(out)
-
-    return replacement_forward
-
 
 def self_guidance_loss(attn_maps: list, self_guidance_dict: dict):
     # Size losses
     size_indices = self_guidance_dict['size_indices']
     size_values = self_guidance_dict['size_values']
     assert len(size_values) == len(size_indices), 'OOPS, there should be an equal amount of values and indices'
-    loss = 0
+    loss = torch.zeros(1, device='cuda')
     for i, index in enumerate(size_indices):
         for attn_map in attn_maps:
-            loss += l1_loss(size_fn(attn_map), size_values[i])
+            loss += torch.abs(size_fn(attn_map[:, :, index]) - size_values[i])
+            # print('temp', loss)
 
     return loss
