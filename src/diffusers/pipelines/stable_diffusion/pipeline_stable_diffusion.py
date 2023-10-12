@@ -565,7 +565,6 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         """Disables the FreeU mechanism if enabled."""
         self.unet.disable_freeu()
 
-    @torch.no_grad()
     @replace_example_docstring(EXAMPLE_DOC_STRING)
     def __call__(
         self,
@@ -736,6 +735,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 # expand the latents if we are doing classifier free guidance
                 latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+
+                latent_model_input.retain_grad()
 
                 # predict the noise residual
                 noise_pred = self.unet(
