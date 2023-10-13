@@ -33,7 +33,6 @@ from ..pipeline_utils import DiffusionPipeline
 from .pipeline_output import StableDiffusionPipelineOutput
 from .safety_checker import StableDiffusionSafetyChecker
 
-
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 EXAMPLE_DOC_STRING = """
@@ -102,15 +101,15 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
     _exclude_from_cpu_offload = ["safety_checker"]
 
     def __init__(
-        self,
-        vae: AutoencoderKL,
-        text_encoder: CLIPTextModel,
-        tokenizer: CLIPTokenizer,
-        unet: UNet2DConditionModel,
-        scheduler: KarrasDiffusionSchedulers,
-        safety_checker: StableDiffusionSafetyChecker,
-        feature_extractor: CLIPImageProcessor,
-        requires_safety_checker: bool = True,
+            self,
+            vae: AutoencoderKL,
+            text_encoder: CLIPTextModel,
+            tokenizer: CLIPTokenizer,
+            unet: UNet2DConditionModel,
+            scheduler: KarrasDiffusionSchedulers,
+            safety_checker: StableDiffusionSafetyChecker,
+            feature_extractor: CLIPImageProcessor,
+            requires_safety_checker: bool = True,
     ):
         super().__init__()
 
@@ -221,16 +220,16 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         self.vae.disable_tiling()
 
     def _encode_prompt(
-        self,
-        prompt,
-        device,
-        num_images_per_prompt,
-        do_classifier_free_guidance,
-        negative_prompt=None,
-        prompt_embeds: Optional[torch.FloatTensor] = None,
-        negative_prompt_embeds: Optional[torch.FloatTensor] = None,
-        lora_scale: Optional[float] = None,
-        **kwargs,
+            self,
+            prompt,
+            device,
+            num_images_per_prompt,
+            do_classifier_free_guidance,
+            negative_prompt=None,
+            prompt_embeds: Optional[torch.FloatTensor] = None,
+            negative_prompt_embeds: Optional[torch.FloatTensor] = None,
+            lora_scale: Optional[float] = None,
+            **kwargs,
     ):
         deprecation_message = "`_encode_prompt()` is deprecated and it will be removed in a future version. Use `encode_prompt()` instead. Also, be aware that the output format changed from a concatenated tensor to a tuple."
         deprecate("_encode_prompt()", "1.0.0", deprecation_message, standard_warn=False)
@@ -253,16 +252,16 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         return prompt_embeds
 
     def encode_prompt(
-        self,
-        prompt,
-        device,
-        num_images_per_prompt,
-        do_classifier_free_guidance,
-        negative_prompt=None,
-        prompt_embeds: Optional[torch.FloatTensor] = None,
-        negative_prompt_embeds: Optional[torch.FloatTensor] = None,
-        lora_scale: Optional[float] = None,
-        clip_skip: Optional[int] = None,
+            self,
+            prompt,
+            device,
+            num_images_per_prompt,
+            do_classifier_free_guidance,
+            negative_prompt=None,
+            prompt_embeds: Optional[torch.FloatTensor] = None,
+            negative_prompt_embeds: Optional[torch.FloatTensor] = None,
+            lora_scale: Optional[float] = None,
+            clip_skip: Optional[int] = None,
     ):
         r"""
         Encodes the prompt into text encoder hidden states.
@@ -327,10 +326,10 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             untruncated_ids = self.tokenizer(prompt, padding="longest", return_tensors="pt").input_ids
 
             if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not torch.equal(
-                text_input_ids, untruncated_ids
+                    text_input_ids, untruncated_ids
             ):
                 removed_text = self.tokenizer.batch_decode(
-                    untruncated_ids[:, self.tokenizer.model_max_length - 1 : -1]
+                    untruncated_ids[:, self.tokenizer.model_max_length - 1: -1]
                 )
                 logger.warning(
                     "The following part of your input was truncated because CLIP can only handle sequences up to"
@@ -476,20 +475,20 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         return extra_step_kwargs
 
     def check_inputs(
-        self,
-        prompt,
-        height,
-        width,
-        callback_steps,
-        negative_prompt=None,
-        prompt_embeds=None,
-        negative_prompt_embeds=None,
+            self,
+            prompt,
+            height,
+            width,
+            callback_steps,
+            negative_prompt=None,
+            prompt_embeds=None,
+            negative_prompt_embeds=None,
     ):
         if height % 8 != 0 or width % 8 != 0:
             raise ValueError(f"`height` and `width` have to be divisible by 8 but are {height} and {width}.")
 
         if (callback_steps is None) or (
-            callback_steps is not None and (not isinstance(callback_steps, int) or callback_steps <= 0)
+                callback_steps is not None and (not isinstance(callback_steps, int) or callback_steps <= 0)
         ):
             raise ValueError(
                 f"`callback_steps` has to be a positive integer but is {callback_steps} of type"
@@ -531,7 +530,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             )
 
         if latents is None:
-            latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype, retain_grad=True)
+            latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype, requires_grad=True)
         else:
             latents = latents.to(device)
 
@@ -567,28 +566,28 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
     @replace_example_docstring(EXAMPLE_DOC_STRING)
     def __call__(
-        self,
-        prompt: Union[str, List[str]] = None,
-        height: Optional[int] = None,
-        width: Optional[int] = None,
-        num_inference_steps: int = 50,
-        guidance_scale: float = 7.5,
-        negative_prompt: Optional[Union[str, List[str]]] = None,
-        num_images_per_prompt: Optional[int] = 1,
-        eta: float = 0.0,
-        generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
-        latents: Optional[torch.FloatTensor] = None,
-        prompt_embeds: Optional[torch.FloatTensor] = None,
-        negative_prompt_embeds: Optional[torch.FloatTensor] = None,
-        output_type: Optional[str] = "pil",
-        return_dict: bool = True,
-        callback: Optional[Callable[[int, int, torch.FloatTensor], None]] = None,
-        callback_steps: int = 1,
-        cross_attention_kwargs: Optional[Dict[str, Any]] = None,
-        guidance_rescale: float = 0.0,
-        clip_skip: Optional[int] = None,
-        self_guidance_scale: float = 7500.0,
-        self_guidance_dict: dict = None,
+            self,
+            prompt: Union[str, List[str]] = None,
+            height: Optional[int] = None,
+            width: Optional[int] = None,
+            num_inference_steps: int = 50,
+            guidance_scale: float = 7.5,
+            negative_prompt: Optional[Union[str, List[str]]] = None,
+            num_images_per_prompt: Optional[int] = 1,
+            eta: float = 0.0,
+            generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
+            latents: Optional[torch.FloatTensor] = None,
+            prompt_embeds: Optional[torch.FloatTensor] = None,
+            negative_prompt_embeds: Optional[torch.FloatTensor] = None,
+            output_type: Optional[str] = "pil",
+            return_dict: bool = True,
+            callback: Optional[Callable[[int, int, torch.FloatTensor], None]] = None,
+            callback_steps: int = 1,
+            cross_attention_kwargs: Optional[Dict[str, Any]] = None,
+            guidance_rescale: float = 0.0,
+            clip_skip: Optional[int] = None,
+            self_guidance_scale: float = 7500.0,
+            self_guidance_dict: dict = None,
     ):
         r"""
         The call function to the pipeline for generation.
@@ -706,6 +705,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # Save attn maps to get loss later
         attn_controls = []
         if do_self_guidance:
+            for param in self.unet.parameters():
+                param.requires_grad = True
             register_attention_layers_recr(self.unet, attn_controls)
 
         # 4. Prepare timesteps
@@ -733,12 +734,15 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
                 # expand the latents if we are doing classifier free guidance
+                latents.retain_grad()
                 latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
-                latents.retain_grad()
-
                 # predict the noise residual
+                for param in self.unet.parameters():
+                    if param.grad is not None:
+                        param.grad.zero_()
+
                 noise_pred = self.unet(
                     latent_model_input,
                     t,
@@ -763,13 +767,20 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     sg_loss.backward()  # todo check
 
                     lat_uncond, lat_cond = latent_model_input.chunk(2)
-                    scaled_guidance_funcs.append(lat_cond.grad)
+                    # print(lat_cond.grad)
+                    # print(latent_model_input.grad.shape)
+                    # print(latents.grad.shape)
+                    scaled_guidance_funcs.append(latents.grad)
 
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     scaled_guidance_funcs.append(guidance_scale * (noise_pred_text - noise_pred_uncond))
 
                 noise_pred = noise_pred_uncond + sum(scaled_guidance_funcs)
+
+                latents.grad.zero_()
+                if noise_pred.grad is not None:
+                    noise_pred.grad.zero_()
 
                 # if do_classifier_free_guidance and guidance_rescale > 0.0:  todo bring this stuff back
                 #     # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
