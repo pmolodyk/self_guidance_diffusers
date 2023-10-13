@@ -40,6 +40,7 @@ def randn_tensor(
     device: Optional["torch.device"] = None,
     dtype: Optional["torch.dtype"] = None,
     layout: Optional["torch.layout"] = None,
+    requires_grad: bool = False
 ):
     """A helper function to create random tensors on the desired `device` with the desired `dtype`. When
     passing a list of generators, you can seed each batch size individually. If CPU generators are passed, the tensor
@@ -72,12 +73,12 @@ def randn_tensor(
     if isinstance(generator, list):
         shape = (1,) + shape[1:]
         latents = [
-            torch.randn(shape, generator=generator[i], device=rand_device, dtype=dtype, layout=layout)
+            torch.randn(shape, generator=generator[i], device=rand_device, dtype=dtype, layout=layout, requires_grad=requires_grad)
             for i in range(batch_size)
         ]
         latents = torch.cat(latents, dim=0).to(device)
     else:
-        latents = torch.randn(shape, generator=generator, device=rand_device, dtype=dtype, layout=layout).to(device)
+        latents = torch.randn(shape, generator=generator, device=rand_device, dtype=dtype, layout=layout, requires_grad=requires_grad).to(device)
 
     return latents
 
