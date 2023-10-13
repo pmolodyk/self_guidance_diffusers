@@ -761,7 +761,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                     sg_loss = self_guidance_loss(attn_maps, self_guidance_dict) * self_guidance_scale
                     sg_loss.backward()  # todo check
-                    scaled_guidance_funcs.append(latent_model_input.grad)
+
+                    lat_uncond, lat_cond = latent_model_input.chunk(2)
+                    scaled_guidance_funcs.append(lat_cond.grad)
 
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
