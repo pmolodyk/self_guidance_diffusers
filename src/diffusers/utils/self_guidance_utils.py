@@ -20,8 +20,8 @@ def register_attention_layers_recr(net_, controls):
 
 
 # Parse inputs to construct self-guidance component
-def construct_guidance_dict(size_indices: list = None, size_values: list = None):  # TODO Support all modes
-    return {"size_indices": size_indices, "size_values": size_values}
+def construct_guidance_dict(size_indices: list = None, size_coefs: list = None):  # TODO Support all modes
+    return {"size_indices": size_indices, "size_coefs": size_coefs}
 
 
 # Defining the g functions for different edits
@@ -66,12 +66,13 @@ class MapsRecorder:
 def self_guidance_loss(attn_maps: list, self_guidance_dict: dict):
     # Size losses
     size_indices = self_guidance_dict['size_indices']
-    size_values = self_guidance_dict['size_values']
-    assert len(size_values) == len(size_indices), 'OOPS, there should be an equal amount of values and indices'
+    size_coefs = self_guidance_dict['size_coefs']
+    assert len(size_indices) == len(size_coefs), 'OOPS, there should be an equal amount of coefs and indices'
     loss = torch.zeros(1, device='cuda')
     for i, index in enumerate(size_indices):
         for attn_map in attn_maps:
-            loss += torch.abs(size_fn(attn_map[:, :, index]) - size_values[i])
-            # print('temp', loss)
+            print(attn_map.shape)
+            calc_size = size_fn(attn_map[:, :, index])
+            loss += torch.abs(calc_size - size_coefs[i] * calc_size)
 
     return loss
