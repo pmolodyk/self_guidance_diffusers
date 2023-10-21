@@ -583,8 +583,9 @@ class RecordingAttnProcessor:
         key = attn.head_to_batch_dim(key)
         value = attn.head_to_batch_dim(value)
 
-        self.attn_recorder.q = query
-        self.attn_recorder.k = key
+        if encoder_hidden_states is not None:
+            self.attn_recorder.q = query
+            self.attn_recorder.k = key
 
         attention_probs = attn.get_attention_scores(query, key, attention_mask)
         hidden_states = torch.bmm(attention_probs, value)

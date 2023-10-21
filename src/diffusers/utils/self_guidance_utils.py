@@ -11,7 +11,8 @@ def register_attention_layers_recr(net_, controls):
     if net_.__class__.__name__ == 'Attention':
         recorder = MapsRecorder()
         net_.register_attn_recorder(recorder)
-        controls.append(recorder)
+        if recorder.q is not None and recorder.k is not None:
+            controls.append(recorder)
         return
     elif hasattr(net_, 'children'):
         for net__ in net_.children():
