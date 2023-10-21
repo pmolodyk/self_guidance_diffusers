@@ -660,6 +660,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # 0. Default height and width to unet
         height = height or self.unet.config.sample_size * self.vae_scale_factor
         width = width or self.unet.config.sample_size * self.vae_scale_factor
+        self.output_maps = list()
 
         # 1. Check inputs. Raise error if not correct
         self.check_inputs(
@@ -752,8 +753,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 if do_self_guidance:
                     attn_maps = []
                     for recorder in attn_controls:
-                        attn_map = einsum('b i d, b j d -> b i j', recorder.q, recorder.k)
-                        attn_maps.append(attn_map)
+                        if recorder.maps is not None:
+                            attn_maps.append(recorder.maps)
+                            self.output_maps.append((t, recorder.maps))
 
                     sg_loss = self_guidance_loss(attn_maps, self_guidance_dict) * self_guidance_scale
                     scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])

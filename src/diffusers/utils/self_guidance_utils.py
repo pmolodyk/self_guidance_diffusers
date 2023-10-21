@@ -11,8 +11,7 @@ def register_attention_layers_recr(net_, controls):
     if net_.__class__.__name__ == 'Attention':
         recorder = MapsRecorder()
         net_.register_attn_recorder(recorder)
-        if recorder.q is not None and recorder.k is not None:
-            controls.append(recorder)
+        controls.append(recorder)
         return
     elif hasattr(net_, 'children'):
         for net__ in net_.children():
@@ -61,6 +60,7 @@ class MapsRecorder:
     def __init__(self):
         self.q = None
         self.k = None
+        self.maps = None
 
 
 def self_guidance_loss(attn_maps: list, self_guidance_dict: dict):
@@ -71,7 +71,6 @@ def self_guidance_loss(attn_maps: list, self_guidance_dict: dict):
     loss = torch.zeros(1, device='cuda')
     for i, index in enumerate(size_indices):
         for attn_map in attn_maps:
-            print(attn_map.shape)
             calc_size = size_fn(attn_map[:, :, index])
             loss += torch.abs(calc_size - size_coefs[i] * calc_size)
 
