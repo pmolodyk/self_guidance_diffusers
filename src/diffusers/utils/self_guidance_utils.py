@@ -1,4 +1,7 @@
 import torch
+from einops import rearrange, repeat
+from torch import einsum
+from torch.nn.functional import l1_loss
 import numpy as np
 
 used_cross_attn_layers = ['CrossAttnDownBlock2D', 'CrossAttnUpBlock2D']
@@ -17,8 +20,8 @@ def register_attention_layers_recr(net_, controls):
 
 
 # Parse inputs to construct self-guidance component
-def construct_guidance_dict(size_indices: list = None, size_coefs: list = None):  # TODO Support all modes
-    return {"size_indices": size_indices, "size_coefs": size_coefs}
+def construct_guidance_dict(size_indices: list = None, size_values: list = None):  # TODO Support all modes
+    return {"size_indices": size_indices, "size_values": size_values}
 
 
 # Funcs to threshold the maps
@@ -71,8 +74,8 @@ class MapsRecorder:
 def self_guidance_loss(attn_maps: list, self_guidance_dict: dict):
     # Size losses
     size_indices = self_guidance_dict['size_indices']
-    size_coefs = self_guidance_dict['size_coefs']
-    assert len(size_indices) == len(size_coefs), 'OOPS, there should be an equal amount of coefs and indices'
+    size_values = self_guidance_dict['size_values']
+    assert len(size_indices) == len(size_values), 'OOPS, there should be an equal amount of values and indices'
     loss = torch.zeros(1, device='cuda')
     for i, index in enumerate(size_indices):
         for attn_map in attn_maps:
@@ -82,6 +85,6 @@ def self_guidance_loss(attn_maps: list, self_guidance_dict: dict):
             rel_map = attn_map.reshape(hw, hw, attn_map.shape[-1])
 
             calc_size = size_fn(threshold_map(rel_map[:, :, index]))
-            loss += torch.abs(calc_size - size_coefs[i] * calc_size)
+            loss += torch.abs(calc_size - size_values[i])
 
     return loss
