@@ -589,7 +589,8 @@ class RecordingAttnProcessor:
         hidden_states = attn.batch_to_head_dim(hidden_states)
 
         if is_cross_attention:
-            self.attn_recorder.maps = attention_probs
+            uncond_sz = attention_probs.shape[0] // 2
+            self.attn_recorder.maps = attention_probs[uncond_sz:, :, :]
 
         # linear proj
         hidden_states = attn.to_out[0](hidden_states, scale=scale)

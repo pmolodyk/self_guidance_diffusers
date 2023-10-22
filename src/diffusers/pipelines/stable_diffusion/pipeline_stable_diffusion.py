@@ -754,8 +754,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     attn_maps = []
                     for recorder in attn_controls:
                         if recorder.maps is not None:
-                            attn_maps.append(recorder.maps)
-                            self.output_maps.append((t, recorder.maps))
+                            for j in range(recorder.maps.shape[0]):
+                                attn_maps.append(recorder.maps[j, :, :])
+                                self.output_maps.append((t, recorder.maps[j, :, :]))
 
                     sg_loss = self_guidance_loss(attn_maps, self_guidance_dict) * self_guidance_scale
                     scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
