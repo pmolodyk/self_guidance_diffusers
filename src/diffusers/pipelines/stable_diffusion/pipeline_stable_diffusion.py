@@ -725,6 +725,10 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
+
+        # List to save the initial attn maps to allow for relative edits
+        self.initial_maps = []
+
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
                 # expand the latents if we are doing classifier free guidance
@@ -756,9 +760,11 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                         if recorder.maps is not None:
                             for j in range(recorder.maps.shape[0]):
                                 attn_maps.append(recorder.maps[j, :, :])
+                                if i == 0:
+                                    self.initial_maps.append(recorder.maps[j, :, :])
                                 self.output_maps.append((t, recorder.maps[j, :, :]))
 
-                    sg_loss = self_guidance_loss(attn_maps, self_guidance_dict) * self_guidance_scale
+                    sg_loss = self_guidance_loss(attn_maps, self_guidance_dict, self.initial_maps) * self_guidance_scale
                     scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
 
                 if do_classifier_free_guidance:
