@@ -26,11 +26,11 @@ def threshold_map(attn_map, s=10.0):
 
 # Defining the g functions for different edits
 def centroid_fn(relevant_att_map: torch.Tensor):  # shape: w, h, c
-    w = torch.arange(relevant_att_map.shape[0])
-    h = torch.arange(relevant_att_map.shape[1])
+    w = torch.arange(relevant_att_map.shape[0]).to("cuda")
+    h = torch.arange(relevant_att_map.shape[1]).to("cuda")
     map_mult_w = relevant_att_map * w
     map_mult_h = relevant_att_map * h
-    return torch.cat([map_mult_w.sum(dim=[0, 1]), map_mult_h.sum(dim=[0, 1])], 0) / relevant_att_map.sum()
+    return torch.cat([map_mult_w.flatten().sum(dim=0, keepdim=True), map_mult_h.flatten().sum(dim=0, keepdim=True)], 0) / relevant_att_map.sum()
 
 
 def size_fn(relevant_att_map: torch.Tensor):
@@ -60,7 +60,7 @@ def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: 
         # resize map to h X w X tokens
         hw = int(np.sqrt(attn_map.shape[0]))
         rel_map = attn_map.reshape(hw, hw, attn_map.shape[-1])
-        initial_map = initial_maps[j]
+        initial_map = initial_maps[j].reshape(hw, hw, attn_map.shape[-1])
 
         # Size losses
         if "size" in self_guidance_dict:
@@ -88,7 +88,7 @@ def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: 
                     target_value = position_values[i]
                 else:
                     target_value = centroid_fn(threshold_map(initial_map[:, :, index])) + position_values[i]
-                loss += torch.abs(calc_position - target_value)
+                loss += torch.abs(calc_position - target_value).mean()
         # Shape losses
         if "shape" in self_guidance_dict:
             shape_indices = self_guidance_dict['shape']['indices']
