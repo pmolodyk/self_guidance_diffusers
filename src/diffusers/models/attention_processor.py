@@ -550,6 +550,7 @@ class RecordingAttnProcessor:
         temb=None,
         scale=1.0,
     ):
+        is_cross_attention = (encoder_hidden_states is not None)
         residual = hidden_states
 
         if attn.spatial_norm is not None:
@@ -583,12 +584,13 @@ class RecordingAttnProcessor:
         key = attn.head_to_batch_dim(key)
         value = attn.head_to_batch_dim(value)
 
-        self.attn_recorder.q = query
-        self.attn_recorder.k = key
-
         attention_probs = attn.get_attention_scores(query, key, attention_mask)
         hidden_states = torch.bmm(attention_probs, value)
         hidden_states = attn.batch_to_head_dim(hidden_states)
+
+        if is_cross_attention:
+            uncond_sz = attention_probs.shape[0] // 2
+            self.attn_recorder.maps = attention_probs[uncond_sz:, :, :]
 
         # linear proj
         hidden_states = attn.to_out[0](hidden_states, scale=scale)

@@ -660,6 +660,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # 0. Default height and width to unet
         height = height or self.unet.config.sample_size * self.vae_scale_factor
         width = width or self.unet.config.sample_size * self.vae_scale_factor
+        self.output_maps = list()
 
         # 1. Check inputs. Raise error if not correct
         self.check_inputs(
@@ -702,13 +703,6 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         if do_classifier_free_guidance:
             prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
 
-        # Save attn maps to get loss later
-        attn_controls = []
-        if do_self_guidance:
-            for param in self.unet.parameters():
-                param.requires_grad = True
-            register_attention_layers_recr(self.unet, attn_controls)
-
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
@@ -731,18 +725,23 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
+
+        # List to save the initial attn maps to allow for relative edits
+        self.initial_maps = []
+
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
                 # expand the latents if we are doing classifier free guidance
-                latents.retain_grad()
+                latents = latents.detach().requires_grad_(True)
                 latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
-                # predict the noise residual
-                for param in self.unet.parameters():
-                    if param.grad is not None:
-                        param.grad.zero_()
+                # Save attn maps to get loss later
+                attn_controls = []
+                if do_self_guidance:
+                    register_attention_layers_recr(self.unet, attn_controls)
 
+                # predict the noise residual
                 noise_pred = self.unet(
                     latent_model_input,
                     t,
@@ -755,32 +754,24 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 scaled_guidance_funcs = []
 
                 # self guidance attn maps
-                attn_maps = []
-                sg_loss = 0
-
                 if do_self_guidance:
+                    attn_maps = []
                     for recorder in attn_controls:
-                        attn_map = einsum('b i d, b j d -> b i j', recorder.q, recorder.k)
-                        attn_maps.append(attn_map)
+                        if recorder.maps is not None:
+                            for j in range(recorder.maps.shape[0]):
+                                attn_maps.append(recorder.maps[j, :, :])
+                                if i == 0:
+                                    self.initial_maps.append(recorder.maps[j, :, :])
+                                self.output_maps.append((t, recorder.maps[j, :, :]))
 
-                    sg_loss = self_guidance_loss(attn_maps, self_guidance_dict) * self_guidance_scale
-                    sg_loss.backward()  # todo check
-
-                    lat_uncond, lat_cond = latent_model_input.chunk(2)
-                    # print(lat_cond.grad)
-                    # print(latent_model_input.grad.shape)
-                    # print(latents.grad.shape)
-                    scaled_guidance_funcs.append(latents.grad)
+                    sg_loss = self_guidance_loss(attn_maps, self_guidance_dict, self.initial_maps) * self_guidance_scale
+                    scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
 
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     scaled_guidance_funcs.append(guidance_scale * (noise_pred_text - noise_pred_uncond))
 
                 noise_pred = noise_pred_uncond + sum(scaled_guidance_funcs)
-
-                latents.grad.zero_()
-                if noise_pred.grad is not None:
-                    noise_pred.grad.zero_()
 
                 # if do_classifier_free_guidance and guidance_rescale > 0.0:  todo bring this stuff back
                 #     # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
