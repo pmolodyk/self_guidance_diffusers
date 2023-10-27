@@ -38,7 +38,7 @@ out = pipe(height=height, width=width, prompt=prompt, self_guidance_dict={}, lat
            num_inference_steps=num_inference_steps)
 out.images[0].show(title='basic')
 
-self_guidance_dict = {"size": {"mode": "relative", "indices": [2], "values": [0.5]}}
+self_guidance_dict = {"size": {"mode": "relative", "indices": [2], "values": [2.0]}}
 out = pipe(height=height, width=width, prompt=prompt, self_guidance_dict=self_guidance_dict, latents=latents,
            num_inference_steps=num_inference_steps, self_guidance_scale=15.0)
 out.images[0].show(title='enlarged')
