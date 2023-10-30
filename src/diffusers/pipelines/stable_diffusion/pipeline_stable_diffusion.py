@@ -28,7 +28,7 @@ from ...models.lora import adjust_lora_scale_text_encoder
 from ...schedulers import KarrasDiffusionSchedulers
 from ...utils import deprecate, logging, replace_example_docstring, scale_lora_layers, unscale_lora_layers
 from ...utils.torch_utils import randn_tensor
-from ...utils.self_guidance_utils import register_attention_layers_recr, self_guidance_loss
+from ...utils.self_guidance_utils import register_attention_layers_recr, self_guidance_loss, register_activation_recr
 from ..pipeline_utils import DiffusionPipeline
 from .pipeline_output import StableDiffusionPipelineOutput
 from .safety_checker import StableDiffusionSafetyChecker
@@ -738,8 +738,10 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                 # Save attn maps to get loss later
                 attn_controls = []
+                actv_controls = []
                 if do_self_guidance:
                     register_attention_layers_recr(self.unet, attn_controls)
+                    register_activation_recr(self.unet, actv_controls)
 
                 # predict the noise residual
                 noise_pred = self.unet(

@@ -2,6 +2,7 @@ import torch
 import numpy as np
 
 used_cross_attn_layers = ['CrossAttnDownBlock2D', 'CrossAttnUpBlock2D']
+up_blocks_names = {"UpBlock2D", "CrossAttnUpBlock2D"}
 
 
 def register_attention_layers_recr(net_, controls):
@@ -14,6 +15,18 @@ def register_attention_layers_recr(net_, controls):
     elif hasattr(net_, 'children'):
         for net__ in net_.children():
             register_attention_layers_recr(net__, controls)
+
+
+def register_activation_recr(net_, controls, is_in_up=False):
+    if net_.__class__.__name__ == 'ResnetBlock2D' and is_in_up:
+        recorder = ActivationMapsRecorder()
+        net_.register_activations_recorder(recorder)
+        controls.append(recorder)
+        return
+    elif hasattr(net_, 'children'):
+        for net__ in net_.children():
+            new_flag = (is_in_up or (net_.__class__.__name__ in up_blocks_names))
+            register_activation_recr(net__, controls, new_flag)
 
 # Funcs to threshold the maps
 def normalize_map(attn_map):
@@ -53,6 +66,10 @@ class MapsRecorder:
         self.k = None
         self.maps = None
 
+
+class ActivationMapsRecorder:
+    def __init__(self):
+        self.activation_maps = []
 
 def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: list):
     loss = torch.zeros(1, device='cuda')
