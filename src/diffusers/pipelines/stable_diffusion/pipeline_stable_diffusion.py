@@ -521,7 +521,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     f" {negative_prompt_embeds.shape}."
                 )
 
-    def prepare_latents(self, batch_size, num_channels_latents, height, width, dtype, device, generator, latents=None):
+    def prepare_latents(self, batch_size, num_channels_latents, height, width, dtype, device, generator, latents=None, do_self_guidance=False):
         shape = (batch_size, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
         if isinstance(generator, list) and len(generator) != batch_size:
             raise ValueError(
@@ -530,7 +530,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             )
 
         if latents is None:
-            latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype, requires_grad=True)
+            latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype, requires_grad=do_self_guidance)
         else:
             latents = latents.to(device)
 
@@ -587,7 +587,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             guidance_rescale: float = 0.0,
             clip_skip: Optional[int] = None,
             self_guidance_scale: float = 7500.0,
-            self_guidance_dict: dict = None,
+            self_guidance_dict: dict = dict(),
     ):
         r"""
         The call function to the pipeline for generation.
@@ -718,6 +718,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             device,
             generator,
             latents,
+            do_self_guidance=do_self_guidance,
         )
 
         # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
@@ -732,7 +733,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
                 # expand the latents if we are doing classifier free guidance
-                latents = latents.detach().requires_grad_(True)
+                if do_self_guidance:
+                    latents = latents.detach().requires_grad_(True)
                 latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
@@ -775,7 +777,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                 noise_pred = noise_pred_uncond + sum(scaled_guidance_funcs)
 
-                # if do_classifier_free_guidance and guidance_rescale > 0.0:  todo bring this stuff back
+                # if do_classifier_free_guidance and guidance_rescale > 0.0:  todo bring this stuff back Please do!
                 #     # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
                 #     noise_pred = rescale_noise_cfg(noise_pred, noise_pred_text, guidance_rescale=guidance_rescale)
 
@@ -790,10 +792,10 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                         callback(step_idx, t, latents)
 
         if not output_type == "latent":
-            image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0].detach()
+            image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
             image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
         else:
-            image = latents.detach()
+            image = latents
             has_nsfw_concept = None
 
         if has_nsfw_concept is None:
@@ -801,7 +803,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         else:
             do_denormalize = [not has_nsfw for has_nsfw in has_nsfw_concept]
 
-        image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
+        image = self.image_processor.postprocess(image.detach(), output_type=output_type, do_denormalize=do_denormalize)
 
         # Offload all models
         self.maybe_free_model_hooks()
