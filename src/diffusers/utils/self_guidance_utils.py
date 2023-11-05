@@ -81,6 +81,7 @@ def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: 
 
         # Size losses
         if "size" in self_guidance_dict:
+            size_weight = self_guidance_dict["size"]["weight"] if "weight" in self_guidance_dict["size"] else 1.0
             size_indices = self_guidance_dict['size']['indices']
             size_values = self_guidance_dict['size']['values']
             assert len(size_indices) == len(size_values), 'OOPS, there should be an equal amount of values and indices'
@@ -91,9 +92,10 @@ def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: 
                     target_value = size_values[i]
                 else:
                     target_value = size_fn(threshold_map(initial_map[:, :, index])) * size_values[i]
-                loss += torch.abs(calc_size - target_value)
+                loss += torch.abs(calc_size - target_value) * size_weight
         # Position losses
         if "position" in self_guidance_dict:
+            position_weight = self_guidance_dict["position"]["weight"] if "weight" in self_guidance_dict["position"] else 1.0
             position_indices = self_guidance_dict['position']['indices']
             position_values = self_guidance_dict['position']['values']
 
@@ -105,16 +107,17 @@ def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: 
                     target_value = position_values[i]
                 else:
                     target_value = centroid_fn(threshold_map(initial_map[:, :, index])) + position_values[i]
-                loss += torch.abs(calc_position - target_value).mean()
+                loss += torch.abs(calc_position - target_value).mean() * position_weight
         # Shape losses
         if "shape" in self_guidance_dict:
+            shape_weight = self_guidance_dict["shape"]["weight"] if "weight" in self_guidance_dict["shape"] else 1.0
             shape_indices = self_guidance_dict['shape']['indices']
 
             for i, index in enumerate(shape_indices):
                 actual_shape = shape_fn(rel_map[:, :, index])
                 desired_shape = shape_fn(initial_map[:, :, index])
 
-                loss += torch.abs(actual_shape - desired_shape).mean()
+                loss += torch.abs(actual_shape - desired_shape).mean() * shape_weight
         # Appearance losses
         if "appearance" in self_guidance_dict:
             pass
