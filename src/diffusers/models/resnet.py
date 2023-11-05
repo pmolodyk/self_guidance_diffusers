@@ -533,6 +533,7 @@ class ResnetBlock2D(nn.Module):
         self.output_scale_factor = output_scale_factor
         self.time_embedding_norm = time_embedding_norm
         self.skip_time_act = skip_time_act
+        self.feature_map_recorder = None
 
         if groups_out is None:
             groups_out = groups
@@ -597,6 +598,9 @@ class ResnetBlock2D(nn.Module):
                 in_channels, conv_2d_out_channels, kernel_size=1, stride=1, padding=0, bias=conv_shortcut_bias
             )
 
+    def register_activations_recorder(self, activation_recorder):
+        self.feature_map_recorder = activation_recorder
+
     def forward(self, input_tensor, temb, scale: float = 1.0):
         hidden_states = input_tensor
 
@@ -606,6 +610,8 @@ class ResnetBlock2D(nn.Module):
             hidden_states = self.norm1(hidden_states)
 
         hidden_states = self.nonlinearity(hidden_states)
+        if self.feature_map_recorder is not None:
+            self.feature_map_recorder.activation_maps.append(hidden_states)
 
         if self.upsample is not None:
             # upsample_nearest_nhwc fails with large batch sizes. see https://github.com/huggingface/diffusers/issues/984
@@ -654,6 +660,8 @@ class ResnetBlock2D(nn.Module):
             hidden_states = hidden_states * (1 + scale) + shift
 
         hidden_states = self.nonlinearity(hidden_states)
+        if self.feature_map_recorder is not None:
+            self.feature_map_recorder.activation_maps.append(hidden_states)
 
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.conv2(hidden_states, scale)
