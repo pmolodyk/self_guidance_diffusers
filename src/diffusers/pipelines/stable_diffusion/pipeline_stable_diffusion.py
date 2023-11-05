@@ -588,6 +588,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             clip_skip: Optional[int] = None,
             self_guidance_scale: float = 7500.0,
             self_guidance_dict: dict = dict(),
+            save_attn_maps: bool = False,
     ):
         r"""
         The call function to the pipeline for generation.
@@ -766,7 +767,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                                 attn_maps.append(recorder.maps[j, :, :])
                                 if i == 0:
                                     self.initial_maps.append(recorder.maps[j, :, :])
-                                self.output_maps.append((t, recorder.maps[j, :, :]))
+                                if save_attn_maps:
+                                    self.output_maps.append((t, recorder.maps[j, :, :].detach().cpu()))
 
                     sg_loss = self_guidance_loss(attn_maps, self_guidance_dict, self.initial_maps) * self_guidance_scale
                     scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
@@ -777,9 +779,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                 noise_pred = noise_pred_uncond + sum(scaled_guidance_funcs)
 
-                # if do_classifier_free_guidance and guidance_rescale > 0.0:  todo bring this stuff back Please do!
-                #     # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
-                #     noise_pred = rescale_noise_cfg(noise_pred, noise_pred_text, guidance_rescale=guidance_rescale)
+                if do_classifier_free_guidance and guidance_rescale > 0.0:
+                    # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
+                    noise_pred = rescale_noise_cfg(noise_pred, noise_pred_text, guidance_rescale=guidance_rescale)
 
                 # compute the previous noisy sample x_t -> x_t-1
                 latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
