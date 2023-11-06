@@ -72,7 +72,7 @@ class ActivationMapsRecorder:
         self.activation_maps = []
 
 def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: list):
-    loss = torch.zeros(1, device='cuda')
+    loss = torch.zeros(1, device=attn_maps[0].device)
     for j, attn_map in enumerate(attn_maps):
         # resize map to h X w X tokens
         hw = int(np.sqrt(attn_map.shape[0]))
