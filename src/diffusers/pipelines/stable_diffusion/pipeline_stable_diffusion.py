@@ -35,6 +35,7 @@ from .safety_checker import StableDiffusionSafetyChecker
 
 from yolov7.load_adv import *
 from yolov7.utils.loss import ComputeLoss
+from yolov7.utils.torch_utils import TPSGridGen
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -736,6 +737,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             adv_dataloader, data_dict = get_dataloader(adv_batch_size)  # Inria
             yolo = get_model(data_dict, device)  # YoloV7
             compute_loss = ComputeLoss(yolo)
+            tps = TPSGridGen(torch.Size([512, 512]))
+            patch_transformer = load_data.PatchTransformer().to(device)
+            patch_applier = load_data.PatchApplier().to(device)
 
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
@@ -788,11 +792,16 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 # Adversarial guidance
                 if do_adv:
                     imgs, targets = next(iter(adv_dataloader))  # ..., [K, 6], where 6 = batch_i + c + xyw'h', K is the number of objects
-                    print(targets[:2, :])
                     imgs = imgs.to(device, non_blocking=True).float()
                     with amp.autocast(enabled=device.type != 'cpu'):
-                        pred = yolo(imgs)  # [(bs, ch * ch * _ * _ * 7 (?), nc + 5), [(bs, ch, _ * 4, _ * 4, nc + 5), 
-                                                    # (bs, ch, _ * 2, _ * 2, nc + 5), (bs, ch, _ * 1, _ * 1, nc + 5)]]
+                        adv_patch = None  # should be decoded image from latents, like 
+                                          # adv_patch = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
+                        adv_patch_tps, _ = tps.tps_trans(adv_patch, max_range=0.1, canvas=0.5, target_shape=adv_patch.shape[-2:])
+                        adv_batch_t = patch_transformer(adv_patch_tps, targets, 416, do_rotate=True, rand_loc=False,
+                                      pooling='median', old_fasion=False)  # this unfortunately doesn't work now because targets 
+                        adv_imgs = patch_applier(imgs, adv_batch_t)  #       look different from normal inria's targets
+                        pred = yolo(adv_imgs)  # [(bs, ch * ch * _ * _ * 7 (?), nc + 5), [(bs, ch, _ * 4, _ * 4, nc + 5), 
+                                                        # (bs, ch, _ * 2, _ * 2, nc + 5), (bs, ch, _ * 1, _ * 1, nc + 5)]]
                                            # would have been pred[1] if we had yolo.train()
                         loss, _ = compute_loss(pred[1][:3], targets.to(device))
                     scaled_guidance_funcs.append(torch.autograd.grad(loss * self_guidance_scale, latents)[0])
