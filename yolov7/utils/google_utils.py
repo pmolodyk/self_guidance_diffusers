@@ -16,12 +16,12 @@ def gsutil_getsize(url=''):
     return eval(s.split(' ')[0]) if len(s) else 0  # bytes
 
 
-def attempt_download(file, repo='WongKinYiu/yolov7'):
+def attempt_download(_file, repo='WongKinYiu/yolov7'):
     # Attempt file download if does not exist
-    file = Path(str(file).strip().replace("'", '').lower())
+    file = Path(str(_file).strip().replace("'", '').lower().split('/')[-1])
 
-    if not file.exists():
-        print('file doesnt exist')
+    if not Path(str(_file)).exists():
+        print(f'file {_file} doesnt exist in {os.getcwd()}')
         try:
             response = requests.get(f'https://api.github.com/repos/{repo}/releases/latest').json()  # github api
             if response['message'] == 'Not Found':
@@ -58,6 +58,8 @@ def attempt_download(file, repo='WongKinYiu/yolov7'):
                     print(f'ERROR: Download failure: {msg}')
                 print('')
                 return
+
+        os.rename(file, _file)  # not tested because even try-catch doesn't save you when you're in china
 
 
 def gdrive_download(id='', file='tmp.zip'):

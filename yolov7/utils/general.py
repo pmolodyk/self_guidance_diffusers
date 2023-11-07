@@ -16,7 +16,6 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision
-import yaml
 
 from yolov7.utils.google_utils import gsutil_getsize
 from yolov7.utils.metrics import fitness

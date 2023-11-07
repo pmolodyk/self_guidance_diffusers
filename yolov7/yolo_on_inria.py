@@ -87,7 +87,7 @@ def train(opt, hyp, device):
         # Forward
         with amp.autocast(enabled=cuda):
             pred = model(imgs)  # [(bs, c, _ * 4, _ * 4, nc + 5), (bs, _ * 2, _ * 2, nc + 5), (bs, _, _, nc + 5)]
-            loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
+            loss, _ = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
 
         # Backward
         loss.backward()

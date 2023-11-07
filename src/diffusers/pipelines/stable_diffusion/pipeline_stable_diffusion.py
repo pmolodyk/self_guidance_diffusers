@@ -16,7 +16,7 @@ import inspect
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch
-from torch import einsum
+from torch.cuda import amp
 from packaging import version
 from transformers import CLIPImageProcessor, CLIPTextModel, CLIPTokenizer
 
@@ -32,6 +32,10 @@ from ...utils.self_guidance_utils import register_attention_layers_recr, self_gu
 from ..pipeline_utils import DiffusionPipeline
 from .pipeline_output import StableDiffusionPipelineOutput
 from .safety_checker import StableDiffusionSafetyChecker
+
+from yolov7.load_adv import *
+from yolov7.utils.loss import ComputeLoss
+
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -589,6 +593,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             self_guidance_scale: float = 7500.0,
             self_guidance_dict: dict = dict(),
             save_attn_maps: bool = False,
+            adv_batch_size: int = 0,
     ):
         r"""
         The call function to the pipeline for generation.
@@ -682,6 +687,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # corresponds to doing no classifier free guidance.
         do_classifier_free_guidance = guidance_scale > 1.0
         do_self_guidance = (self_guidance_scale > 0.0 and len(self_guidance_dict) > 0)
+        do_adv = adv_batch_size > 0
 
         # 3. Encode input prompt
         text_encoder_lora_scale = (
@@ -724,6 +730,12 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
         # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
+
+        # 6.5 Prepare model & dataset for generating an adversarial patch
+        if do_adv:
+            adv_dataloader, data_dict = get_dataloader(adv_batch_size)  # Inria
+            yolo = get_model(data_dict, device)  # YoloV7
+            compute_loss = ComputeLoss(yolo)
 
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
@@ -773,7 +785,19 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     sg_loss = self_guidance_loss(attn_maps, self_guidance_dict, self.initial_maps) * self_guidance_scale
                     scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
 
-                if do_classifier_free_guidance:
+                # Adversarial guidance
+                if do_adv:
+                    imgs, targets = next(iter(adv_dataloader))  # ..., [K, 6], where 6 = batch_i + c + xyw'h', K is the number of objects
+                    print(targets[:2, :])
+                    imgs = imgs.to(device, non_blocking=True).float()
+                    with amp.autocast(enabled=device.type != 'cpu'):
+                        pred = yolo(imgs)  # [(bs, ch * ch * _ * _ * 7 (?), nc + 5), [(bs, ch, _ * 4, _ * 4, nc + 5), 
+                                                    # (bs, ch, _ * 2, _ * 2, nc + 5), (bs, ch, _ * 1, _ * 1, nc + 5)]]
+                                           # would have been pred[1] if we had yolo.train()
+                        loss, _ = compute_loss(pred[1][:3], targets.to(device))
+                    scaled_guidance_funcs.append(torch.autograd.grad(loss * self_guidance_scale, latents)[0])
+
+                if do_classifier_free_guidance or do_adv:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     scaled_guidance_funcs.append(guidance_scale * (noise_pred_text - noise_pred_uncond))
 
