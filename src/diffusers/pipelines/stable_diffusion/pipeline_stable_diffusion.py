@@ -791,20 +791,22 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                 # Adversarial guidance
                 if do_adv:
-                    imgs, targets = next(iter(adv_dataloader))  # ..., [K, 6], where 6 = batch_i + c + xyw'h', K is the number of objects
+                    imgs, targets, targets_padded = next(iter(adv_dataloader))  
+                                # ..., [K, 6], where 6 = batch_i + c + xyw'h', K is the number of objects, old format for tps
                     imgs = imgs.to(device, non_blocking=True).float()
+                    adv_patch = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]  # [1, 3, 512, 512]
                     with amp.autocast(enabled=device.type != 'cpu'):
-                        adv_patch = None  # should be decoded image from latents, like 
-                                          # adv_patch = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
                         adv_patch_tps, _ = tps.tps_trans(adv_patch, max_range=0.1, canvas=0.5, target_shape=adv_patch.shape[-2:])
-                        adv_batch_t = patch_transformer(adv_patch_tps, targets, 416, do_rotate=True, rand_loc=False,
+                        adv_batch_t = patch_transformer(adv_patch_tps, targets_padded.to(device), 416, do_rotate=True, rand_loc=False,
                                       pooling='median', old_fasion=False)  # this unfortunately doesn't work now because targets 
                         adv_imgs = patch_applier(imgs, adv_batch_t)  #       look different from normal inria's targets
                         pred = yolo(adv_imgs)  # [(bs, ch * ch * _ * _ * 7 (?), nc + 5), [(bs, ch, _ * 4, _ * 4, nc + 5), 
-                                                        # (bs, ch, _ * 2, _ * 2, nc + 5), (bs, ch, _ * 1, _ * 1, nc + 5)]]
+                                                # (bs, ch, _ * 2, _ * 2,        nc + 5),  (bs, ch, _ * 1, _ * 1, nc + 5)]]
                                            # would have been pred[1] if we had yolo.train()
                         loss, _ = compute_loss(pred[1][:3], targets.to(device))
-                    scaled_guidance_funcs.append(torch.autograd.grad(loss * self_guidance_scale, latents)[0])
+
+                    grads = torch.autograd.grad(loss * self_guidance_scale, latents)
+                    scaled_guidance_funcs.append(grads[0])
 
                 if do_classifier_free_guidance or do_adv:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)

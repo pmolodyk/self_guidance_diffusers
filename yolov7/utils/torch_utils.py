@@ -41,6 +41,16 @@ def compute_partial_repr(input_points, control_points):
     repr_matrix.masked_fill_(mask, 0)
     return repr_matrix
 
+def grid_sample(input, grid, canvas=None):
+    output = F.grid_sample(input, grid, align_corners=False)
+    if canvas is None:
+        return output
+    else:
+        input_mask = Variable(input.data.new(input.size()).fill_(1))
+        output_mask = F.grid_sample(input_mask, grid, align_corners=False)
+        padded_output = output * output_mask + canvas * (1 - output_mask)
+        return padded_output
+
 class TPSGridGen(nn.Module):
 
     def __init__(self, target_shape, target_control_points=None):
@@ -114,12 +124,12 @@ class TPSGridGen(nn.Module):
         if source_control_points is None:
             source_control_points = self.target_control_points.unsqueeze(0) + self.target_control_points.new(
                 size=(inputs.shape[0], ) + self.target_control_points.shape).uniform_(-max_range, max_range)
-            # source_control_points = source_control_points.to(self.padding_matrix.device)
+            # source_control_points = source_control_points.to(inputs.device)
         if isinstance(canvas, float):
-            canvas = torch.FloatTensor(inputs.shape[0], 3, target_height, target_width).fill_(canvas).to(self.padding_matrix.device)
+            canvas = torch.FloatTensor(inputs.shape[0], 3, target_height, target_width).fill_(canvas).to(inputs.device)
         source_coordinate = self.forward(source_control_points)
         grid = source_coordinate.view(inputs.shape[0], target_height, target_width, 2)
-        target_image = grid_sample(inputs, grid, canvas)
+        target_image = grid_sample(inputs, grid.to(inputs.device), canvas)
         return target_image, source_control_points
 
 @contextmanager
