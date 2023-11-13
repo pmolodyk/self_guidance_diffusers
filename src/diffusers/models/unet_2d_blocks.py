@@ -2220,7 +2220,7 @@ class CrossAttnUpBlock2D(nn.Module):
             and getattr(self, "b2", None)
         )
 
-        res_att = zip(self.resnets, self.attentions)
+        res_att = list(zip(self.resnets, self.attentions))
         for i, (resnet, attn) in enumerate(res_att):
             # pop res hidden states
             res_hidden_states = res_hidden_states_tuple[-1]
@@ -2279,7 +2279,7 @@ class CrossAttnUpBlock2D(nn.Module):
                     return_dict=False,
                 )[0]
                 if record_appearance:
-                    resnet.feature_map_recorder.recorded_maps = attn.attn2.attn_recorder.maps
+                    resnet.feature_map_recorder.recorded_maps = attn.transformer_blocks[-1].attn2.attn_recorder.maps
 
         if self.upsamplers is not None:
             for upsampler in self.upsamplers:
