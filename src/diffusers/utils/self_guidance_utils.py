@@ -72,7 +72,8 @@ class ActivationMapsRecorder:
         self.recorded_maps = None
         self.recorded_appearance = None
 
-def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: list):
+
+def self_guidance_loss(attn_maps: list, actv_maps: list, self_guidance_dict: dict, initial_maps: list, initial_activations: list):
     loss = torch.zeros(1, device=attn_maps[0].device)
     for j, attn_map in enumerate(attn_maps):
         # resize map to h X w X tokens
@@ -121,5 +122,13 @@ def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: 
                 loss += torch.abs(actual_shape - desired_shape).mean() * shape_weight
         # Appearance losses
         if "appearance" in self_guidance_dict:
-            pass
+            appearance_weight = self_guidance_dict["appearance"]["weight"] if "weight" in self_guidance_dict["appearance"] else 1.0
+            appearance_indices = self_guidance_dict['appearance']['indices']
+
+            for i, index in enumerate(appearance_indices):
+                for k, actual_activation in enumerate(actv_maps):
+                    actual_appearance = (actual_activation[k][0] * actual_activation[k][1][:, :, index]).sum()
+                    desired_appearance = (initial_activations[k][0] * initial_activations[k][1][:, :, index]).sum()
+
+                    loss += torch.abs(actual_appearance - desired_appearance)
     return loss

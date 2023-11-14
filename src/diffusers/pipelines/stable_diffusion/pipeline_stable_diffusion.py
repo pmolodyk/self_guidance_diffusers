@@ -728,8 +728,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
 
-        # List to save the initial attn maps to allow for relative edits
+        # List to save the initial attn maps and activations to allow for relative edits
         self.initial_maps = []
+        self.initial_activations = []
 
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
@@ -761,6 +762,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 # self guidance attn maps
                 if do_self_guidance:
                     attn_maps = []
+                    actv_maps = []
                     for recorder in attn_controls:
                         if recorder.maps is not None:
                             for j in range(recorder.maps.shape[0]):
@@ -769,8 +771,13 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                                     self.initial_maps.append(recorder.maps[j, :, :])
                                 if save_attn_maps:
                                     self.output_maps.append((t, recorder.maps[j, :, :].detach().cpu()))
+                    for recorder in actv_controls:
+                        if recorder.recorded_appearance is not None:
+                            actv_maps.append((recorder.recorded_appearance, recorder.recorded_maps))
+                            if i == 0:
+                                self.initial_activations.append((recorder.recorded_appearance, recorder.recorded_maps))
 
-                    sg_loss = self_guidance_loss(attn_maps, self_guidance_dict, self.initial_maps) * self_guidance_scale
+                    sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps, self.initial_activations) * self_guidance_scale
                     scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
 
                 if do_classifier_free_guidance:
