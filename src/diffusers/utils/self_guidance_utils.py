@@ -69,7 +69,8 @@ class MapsRecorder:
 
 class ActivationMapsRecorder:
     def __init__(self):
-        self.activation_maps = []
+        self.recorded_maps = None
+        self.recorded_appearance = None
 
 def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: list):
     loss = torch.zeros(1, device=attn_maps[0].device)
