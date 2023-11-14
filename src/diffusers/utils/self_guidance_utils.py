@@ -120,15 +120,24 @@ def self_guidance_loss(attn_maps: list, actv_maps: list, self_guidance_dict: dic
                 desired_shape = shape_fn(initial_map[:, :, index])
 
                 loss += torch.abs(actual_shape - desired_shape).mean() * shape_weight
-        # Appearance losses
-        if "appearance" in self_guidance_dict:
-            appearance_weight = self_guidance_dict["appearance"]["weight"] if "weight" in self_guidance_dict["appearance"] else 1.0
-            appearance_indices = self_guidance_dict['appearance']['indices']
+    # Appearance losses
+    if "appearance" in self_guidance_dict:
+        appearance_weight = self_guidance_dict["appearance"]["weight"] if "weight" in self_guidance_dict[
+            "appearance"] else 1.0
+        appearance_indices = self_guidance_dict['appearance']['indices']
 
-            for i, index in enumerate(appearance_indices):
-                for k, actual_activation in enumerate(actv_maps):
-                    actual_appearance = (actual_activation[k][0] * actual_activation[k][1][:, :, index]).sum()
-                    desired_appearance = (initial_activations[k][0] * initial_activations[k][1][:, :, index]).sum()
+        for i, index in enumerate(appearance_indices):
+            for k, actual_activation in enumerate(actv_maps):
+                uncond_sz = actual_activation[1].shape[0] // 2
+                token_len = actual_activation[1].shape[-1]
+                hw = int(np.sqrt(actual_activation[1].shape[1]))
 
-                    loss += torch.abs(actual_appearance - desired_appearance)
+                actual_attn_map = actual_activation[1][uncond_sz:, :, :].mean(dim=0).reshape(hw, hw, token_len)
+                desired_attn_map = initial_activations[k][1][uncond_sz:, :, :].mean(dim=0).reshape(hw, hw,
+                                                                                                   token_len)
+
+                actual_appearance = (actual_activation[0].mean(dim=2) * actual_attn_map[:, :, index]).sum()
+                desired_appearance = (initial_activations[k][0].mean(dim=2) * desired_attn_map[:, :, index]).sum()
+
+                loss += torch.abs(actual_appearance - desired_appearance)
     return loss
