@@ -780,6 +780,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
         mid_block_additional_residual: Optional[torch.Tensor] = None,
         encoder_attention_mask: Optional[torch.Tensor] = None,
         return_dict: bool = True,
+        has_self_guidance: bool = False,
     ) -> Union[UNet2DConditionOutput, Tuple]:
         r"""
         The [`UNet2DConditionModel`] forward method.
@@ -1049,7 +1050,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                 upsample_size = down_block_res_samples[-1].shape[2:]
 
             if hasattr(upsample_block, "has_cross_attention") and upsample_block.has_cross_attention:
-                if is_final_block:
+                if is_final_block and has_self_guidance:
                     sample = upsample_block(
                         hidden_states=sample,
                         temb=emb,

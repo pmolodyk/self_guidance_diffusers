@@ -754,6 +754,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     encoder_hidden_states=prompt_embeds,
                     cross_attention_kwargs=cross_attention_kwargs,
                     return_dict=False,
+                    has_self_guidance=do_self_guidance
                 )[0]
 
                 # perform guidance
