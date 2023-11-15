@@ -589,6 +589,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             self_guidance_scale: float = 7500.0,
             self_guidance_dict: dict = dict(),
             save_attn_maps: bool = False,
+            self_guidance_precalculate_steps: int = 0,
     ):
         r"""
         The call function to the pipeline for generation.
@@ -687,6 +688,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         text_encoder_lora_scale = (
             cross_attention_kwargs.get("scale", None) if cross_attention_kwargs is not None else None
         )
+
+        initial_prompt_embeds = prompt_embeds.clone() if prompt_embeds is not None else None
+
         prompt_embeds, negative_prompt_embeds = self.encode_prompt(
             prompt,
             device,
@@ -732,6 +736,11 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         self.initial_maps = []
         self.initial_activations = []
 
+        if do_self_guidance and self_guidance_precalculate_steps > 0:
+            self(prompt, height, width, self_guidance_precalculate_steps, guidance_scale, negative_prompt,
+                 num_images_per_prompt, eta, generator, latents, initial_prompt_embeds, negative_prompt_embeds,
+                 output_type, return_dict, callback, callback_steps, cross_attention_kwargs, guidance_rescale,
+                 clip_skip, 0.0, {}, True, 0)
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
                 # expand the latents if we are doing classifier free guidance
@@ -754,7 +763,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     encoder_hidden_states=prompt_embeds,
                     cross_attention_kwargs=cross_attention_kwargs,
                     return_dict=False,
-                    has_self_guidance=do_self_guidance
+                    has_self_guidance=(do_self_guidance or save_attn_maps)
                 )[0]
 
                 # perform guidance
@@ -768,14 +777,12 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                         if recorder.maps is not None:
                             for j in range(recorder.maps.shape[0]):
                                 attn_maps.append(recorder.maps[j, :, :])
-                                if i == 0:
-                                    self.initial_maps.append(recorder.maps[j, :, :])
-                                if save_attn_maps:
-                                    self.output_maps.append((t, recorder.maps[j, :, :].detach().cpu()))
+                                if save_attn_maps and i == len(timesteps) - 1:
+                                    self.initial_maps.append(recorder.maps[j, :, :].detach().cpu())
                     for recorder in actv_controls:
                         if recorder.recorded_appearance is not None:
                             actv_maps.append((recorder.recorded_appearance, recorder.recorded_maps))
-                            if i == 0:
+                            if save_attn_maps and i == len(timesteps) - 1:
                                 self.initial_activations.append((recorder.recorded_appearance, recorder.recorded_maps))
 
                     sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps, self.initial_activations) * self_guidance_scale
