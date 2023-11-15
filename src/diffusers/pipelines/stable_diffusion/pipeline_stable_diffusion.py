@@ -733,10 +733,18 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
 
         # List to save the initial attn maps and activations to allow for relative edits
-        self.initial_maps = []
-        self.initial_activations = []
+        try:
+            num_maps = len(self.initial_maps)
+            num_acts = len(self.initial_activations)
+            if save_attn_maps:
+                self.initial_maps = []
+                self.initial_activations = []
+        except:
+            self.initial_maps = []
+            self.initial_activations = []
 
         if do_self_guidance and self_guidance_precalculate_steps > 0:
+            print('Calculating attention maps and activations')
             self(prompt, height, width, self_guidance_precalculate_steps, guidance_scale, negative_prompt,
                  num_images_per_prompt, eta, generator, latents, initial_prompt_embeds, negative_prompt_embeds,
                  output_type, return_dict, callback, callback_steps, cross_attention_kwargs, guidance_rescale,
@@ -752,7 +760,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 # Save attn maps to get loss later
                 attn_controls = []
                 actv_controls = []
-                if do_self_guidance:
+                if do_self_guidance or save_attn_maps:
                     register_attention_layers_recr(self.unet, attn_controls)
                     register_activation_recr(self.unet, actv_controls)
 
@@ -770,7 +778,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 scaled_guidance_funcs = []
 
                 # self guidance attn maps
-                if do_self_guidance:
+                if do_self_guidance or save_attn_maps:
                     attn_maps = []
                     actv_maps = []
                     for recorder in attn_controls:
@@ -784,9 +792,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                             actv_maps.append((recorder.recorded_appearance, recorder.recorded_maps))
                             if save_attn_maps and i == len(timesteps) - 1:
                                 self.initial_activations.append((recorder.recorded_appearance, recorder.recorded_maps))
-
-                    sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps, self.initial_activations) * self_guidance_scale
-                    scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
+                    if do_self_guidance:
+                        sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps, self.initial_activations) * self_guidance_scale
+                        scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
 
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)

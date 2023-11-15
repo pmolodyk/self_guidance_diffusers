@@ -78,8 +78,8 @@ def self_guidance_loss(attn_maps: list, actv_maps: list, self_guidance_dict: dic
     for j, attn_map in enumerate(attn_maps):
         # resize map to h X w X tokens
         hw = int(np.sqrt(attn_map.shape[0]))
-        rel_map = attn_map.reshape(hw, hw, attn_map.shape[-1])
-        initial_map = initial_maps[j].reshape(hw, hw, attn_map.shape[-1])
+        rel_map = attn_map.reshape(hw, hw, attn_map.shape[-1]).to("cuda") # todo cuda cleanup
+        initial_map = initial_maps[j].reshape(hw, hw, attn_map.shape[-1]).to("cuda") # todo cuda cleanup
 
         # Size losses
         if "size" in self_guidance_dict:
@@ -136,8 +136,8 @@ def self_guidance_loss(attn_maps: list, actv_maps: list, self_guidance_dict: dic
                 desired_attn_map = initial_activations[k][1][uncond_sz:, :, :].mean(dim=0).reshape(hw, hw,
                                                                                                    token_len)
 
-                actual_appearance = (actual_activation[0].mean(dim=2) * actual_attn_map[:, :, index]).sum()
-                desired_appearance = (initial_activations[k][0].mean(dim=2) * desired_attn_map[:, :, index]).sum()
+                actual_appearance = (actual_activation[0].mean(dim=2) * actual_attn_map[:, :, index]).sum() / actual_attn_map[:, :, index].sum()
+                desired_appearance = (initial_activations[k][0].mean(dim=2) * desired_attn_map[:, :, index]).sum() / desired_attn_map[:, :, index].sum()
 
                 loss += torch.abs(actual_appearance - desired_appearance)
     return loss
