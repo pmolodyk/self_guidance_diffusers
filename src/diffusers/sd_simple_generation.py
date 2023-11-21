@@ -11,8 +11,9 @@ os.system(os.getcwd() + "/src/diffusers/setup_sh.sh")
 parser = argparse.ArgumentParser(description='PyTorch Training')
 parser.add_argument('--adv-coef', type=int, help='')
 parser.add_argument('--type', type=str, help='standard|self|adv')
-parser.add_argument('--steps', default=512, type=int, help='number of inference steps')
+parser.add_argument('--steps', default=500, type=int, help='number of inference steps')
 parser.add_argument('--device', default='cuda:0', help='')
+parser.add_argument('--guidance-scale', default=7.5, type=float, help='guidance scale')
 pargs = parser.parse_args()
 
 device = pargs.device
@@ -52,6 +53,7 @@ for p in pipe.text_encoder.parameters():
 for p in pipe.vae.parameters():
     p.requires_grad = False
 
+guidance_scale = int(pargs.guidance_scale)
 if pargs.type == 'standard':
     print('Standard pipe')
     out = pipe(height=height, width=width, prompt=prompt, latents=latents,
@@ -68,7 +70,8 @@ elif pargs.type == 'adv':
     adv_guidance_scale = int(pargs.adv_coef)
     out = pipe(height=height, width=width, prompt=prompt, self_guidance_dict=dict(), latents=latents,
             num_inference_steps=num_inference_steps, self_guidance_scale=100.0, 
-            adv_guidance_scale=adv_guidance_scale, adv_batch_size=20, adv_model='yolov2')
+            adv_guidance_scale=adv_guidance_scale, adv_batch_size=20, adv_model='yolov2',
+            guidance_scale=guidance_scale)
     name = f'adv_{num_inference_steps}_{adv_guidance_scale}'
 
 out.images[0].show(title=name)
