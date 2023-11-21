@@ -833,10 +833,12 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     scaled_guidance_funcs.append(grads[0])
                 # print('k', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
 
-                if do_classifier_free_guidance or do_adv:
+                if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     scaled_guidance_funcs.append(guidance_scale * (noise_pred_text - noise_pred_uncond))
-                # print('z', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
+                    # print('z', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
+                else:
+                    noise_pred_uncond = noise_pred
 
                 noise_pred = noise_pred_uncond + sum(scaled_guidance_funcs)
 

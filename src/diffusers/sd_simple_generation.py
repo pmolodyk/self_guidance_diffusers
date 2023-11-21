@@ -72,7 +72,7 @@ elif pargs.type == 'adv':
             num_inference_steps=num_inference_steps, self_guidance_scale=100.0, 
             adv_guidance_scale=adv_guidance_scale, adv_batch_size=20, adv_model='yolov2',
             guidance_scale=guidance_scale)
-    name = f'adv_{num_inference_steps}_{adv_guidance_scale}'
+    name = f'adv_{num_inference_steps}_{guidance_scale}_{adv_guidance_scale}'
 
 out.images[0].show(title=name)
 out.images[0].save(f'patches/{name}.png')
