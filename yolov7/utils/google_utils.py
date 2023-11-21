@@ -8,6 +8,7 @@ from pathlib import Path
 
 import requests
 import torch
+import wget
 
 
 def gsutil_getsize(url=''):
@@ -16,48 +17,51 @@ def gsutil_getsize(url=''):
     return eval(s.split(' ')[0]) if len(s) else 0  # bytes
 
 
-def attempt_download(_file, repo='WongKinYiu/yolov7'):
+def attempt_download(_file, repo='WongKinYiu/yolov7', use_wget=False):
     # Attempt file download if does not exist
     file = Path(str(_file).strip().replace("'", '').lower().split('/')[-1])
 
     if not Path(str(_file)).exists():
         print(f'file {_file} doesnt exist in {os.getcwd()}')
-        try:
-            response = requests.get(f'https://api.github.com/repos/{repo}/releases/latest').json()  # github api
-            if response['message'] == 'Not Found':
-                response = requests.get(f'https://api.github.com/repos/WongKinYiu/yolov7/releases').json()
-                response = requests.get(response[0]["url"]).json()
-            assets = [x['name'] for x in response['assets']]  # release assets
-            tag = response['tag_name']  # i.e. 'v1.0'
-        except:  # fallback plan
-            assets = ['yolov7.pt', 'yolov7-tiny.pt', 'yolov7x.pt', 'yolov7-d6.pt', 'yolov7-e6.pt', 
-                      'yolov7-e6e.pt', 'yolov7-w6.pt']
-            print('\ntag|', subprocess.check_output('git tag', shell=True).decode(), '|\n', sep='')
-            tag = subprocess.check_output('git tag', shell=True).decode().split()[-1]
+        if use_wget:
+            file = wget.download(repo)
+        else:
+            try:
+                response = requests.get(f'https://api.github.com/repos/{repo}/releases/latest').json()  # github api
+                if response['message'] == 'Not Found':
+                    response = requests.get(f'https://api.github.com/repos/{repo}/releases').json()
+                    response = requests.get(response[0]["url"]).json()
+                assets = [x['name'] for x in response['assets']]  # release assets
+                tag = response['tag_name']  # i.e. 'v1.0'
+            except:  # fallback plan
+                assets = ['yolov7.pt', 'yolov7-tiny.pt', 'yolov7x.pt', 'yolov7-d6.pt', 'yolov7-e6.pt', 
+                        'yolov7-e6e.pt', 'yolov7-w6.pt']
+                print('\ntag|', subprocess.check_output('git tag', shell=True).decode(), '|\n', sep='')
+                tag = subprocess.check_output('git tag', shell=True).decode().split()[-1]
 
-        name = file.name
-        print('name, assets', name, assets)
-        if name in assets:
-            print('name in assets')
-            msg = f'{file} missing, try downloading from https://github.com/{repo}/releases/'
-            redundant = False  # second download option
-            try:  # GitHub
-                url = f'https://github.com/{repo}/releases/download/{tag}/{name}'
-                print(f'Downloading {url} to {file}...')
-                torch.hub.download_url_to_file(url, file)
-                assert file.exists() and file.stat().st_size > 1E6  # check
-            except Exception as e:  # GCP
-                print(f'Download error: {e}')
-                assert redundant, 'No secondary mirror'
-                url = f'https://storage.googleapis.com/{repo}/ckpt/{name}'
-                print(f'Downloading {url} to {file}...')
-                os.system(f'curl -L {url} -o {file}')  # torch.hub.download_url_to_file(url, weights)
-            finally:
-                if not file.exists() or file.stat().st_size < 1E6:  # check
-                    file.unlink(missing_ok=True)  # remove partial downloads
-                    print(f'ERROR: Download failure: {msg}')
-                print('')
-                return
+            name = file.name
+            print('name, assets', name, assets)
+            if name in assets:
+                print('name in assets')
+                msg = f'{file} missing, try downloading from https://github.com/{repo}/releases/'
+                redundant = False  # second download option
+                try:  # GitHub
+                    url = f'https://github.com/{repo}/releases/download/{tag}/{name}'
+                    print(f'Downloading {url} to {file}...')
+                    torch.hub.download_url_to_file(url, file)
+                    assert file.exists() and file.stat().st_size > 1E6  # check
+                except Exception as e:  # GCP
+                    print(f'Download error: {e}')
+                    assert redundant, 'No secondary mirror'
+                    url = f'https://storage.googleapis.com/{repo}/ckpt/{name}'
+                    print(f'Downloading {url} to {file}...')
+                    os.system(f'curl -L {url} -o {file}')  # torch.hub.download_url_to_file(url, weights)
+                finally:
+                    if not file.exists() or file.stat().st_size < 1E6:  # check
+                        file.unlink(missing_ok=True)  # remove partial downloads
+                        print(f'ERROR: Download failure: {msg}')
+                    print('')
+                    return
 
         os.rename(file, _file)  # not tested because even try-catch doesn't save you when you're in china
 

@@ -36,6 +36,7 @@ from .safety_checker import StableDiffusionSafetyChecker
 from yolov7.load_adv import *
 from yolov7.utils.loss import ComputeLoss
 from yolov7.utils.torch_utils import TPSGridGen
+from yolo2.utils import get_det_loss
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -594,7 +595,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             self_guidance_scale: float = 7500.0,
             self_guidance_dict: dict = dict(),
             save_attn_maps: bool = False,
+            adv_guidance_scale: float = 1000.0,
             adv_batch_size: int = 0,
+            adv_model: str = "yolov2"
     ):
         r"""
         The call function to the pipeline for generation.
@@ -669,10 +672,17 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         width = width or self.unet.config.sample_size * self.vae_scale_factor
         self.output_maps = list()
 
+        # import nvidia_smi
+        # nvidia_smi.nvmlInit()
+        # handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
+        # print('0', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
+
         # 1. Check inputs. Raise error if not correct
         self.check_inputs(
             prompt, height, width, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds
         )
+        assert adv_model in ('yolov2', 'yolov7')
+        # print('1', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
 
         # 2. Define call parameters
         if prompt is not None and isinstance(prompt, str):
@@ -681,6 +691,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             batch_size = len(prompt)
         else:
             batch_size = prompt_embeds.shape[0]
+        # print('2', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
 
         device = self._execution_device
         # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
@@ -710,6 +721,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # to avoid doing two forward passes
         if do_classifier_free_guidance:
             prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+        # print('3', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
 
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
@@ -735,25 +747,27 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # 6.5 Prepare model & dataset for generating an adversarial patch
         if do_adv:
             adv_dataloader, data_dict = get_dataloader(adv_batch_size)  # Inria
-            yolo = get_model(data_dict, device)  # YoloV7
-            compute_loss = ComputeLoss(yolo)
+            yolo = get_model(data_dict, device, adv_model)  # Yolo
+            compute_loss = ComputeLoss(yolo) if adv_model == 'yolov7' else get_det_loss
             tps = TPSGridGen(torch.Size([512, 512]))
             patch_transformer = load_data.PatchTransformer().to(device)
             patch_applier = load_data.PatchApplier().to(device)
 
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
+        # print('7', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
 
         # List to save the initial attn maps to allow for relative edits
         self.initial_maps = []
 
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
-                # expand the latents if we are doing classifier free guidance
                 if do_self_guidance or do_adv:
                     latents = latents.detach().requires_grad_(True)
+                # expand the latents if we are doing classifier free guidance
                 latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+                # print('q', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
 
                 # Save attn maps to get loss later
                 attn_controls = []
@@ -761,6 +775,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 if do_self_guidance:
                     register_attention_layers_recr(self.unet, attn_controls)
                     register_activation_recr(self.unet, actv_controls)
+                # print('e', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
 
                 # predict the noise residual
                 noise_pred = self.unet(
@@ -770,6 +785,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     cross_attention_kwargs=cross_attention_kwargs,
                     return_dict=False,
                 )[0]
+                # print('t', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
 
                 # perform guidance
                 scaled_guidance_funcs = []
@@ -791,26 +807,36 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                 # Adversarial guidance
                 if do_adv:
-                    imgs, targets, targets_padded = next(iter(adv_dataloader))  
+                    imgs, targets, targets_padded = next(iter(adv_dataloader))
+                    # print('i', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
                                 # ..., [K, 6], where 6 = batch_i + c + xyw'h', K is the number of objects, old format for tps
                     imgs = imgs.to(device, non_blocking=True).float()
+                    # print(']', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
                     adv_patch = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]  # [1, 3, 512, 512]
+                    # print('f', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
                     with amp.autocast(enabled=device.type != 'cpu'):
                         adv_patch_tps, _ = tps.tps_trans(adv_patch, max_range=0.1, canvas=0.5, target_shape=adv_patch.shape[-2:])
                         adv_batch_t = patch_transformer(adv_patch_tps, targets_padded.to(device), 416, do_rotate=True, rand_loc=False,
                                       pooling='median', old_fasion=False)  # this unfortunately doesn't work now because targets 
                         adv_imgs = patch_applier(imgs, adv_batch_t)  #       look different from normal inria's targets
-                        pred = yolo(adv_imgs)  # [(bs, ch * ch * _ * _ * 7 (?), nc + 5), [(bs, ch, _ * 4, _ * 4, nc + 5), 
-                                                # (bs, ch, _ * 2, _ * 2,        nc + 5),  (bs, ch, _ * 1, _ * 1, nc + 5)]]
-                                           # would have been pred[1] if we had yolo.train()
-                        loss, _ = compute_loss(pred[1][:3], targets.to(device))
+                        if adv_model == 'yolov7':
+                            pred = yolo(adv_imgs)  # [(bs, ch * ch * _ * _ * 7 (?), nc + 5), [(bs, ch, _ * 4, _ * 4, nc + 5), 
+                                                   #  (bs, ch, _ * 2, _ * 2,        nc + 5),  (bs, ch, _ * 1, _ * 1, nc + 5)]]
+                                                   # would have been pred[1] if we had yolo.train()
+                            loss, _ = compute_loss(pred[1][:3], targets.to(device))
+                        elif adv_model == 'yolov2':
+                            loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device))
+                            if valid_num > 0:
+                                loss = loss / valid_num
 
-                    grads = torch.autograd.grad(loss * self_guidance_scale, latents)
+                    grads = torch.autograd.grad(loss * adv_guidance_scale, latents)
                     scaled_guidance_funcs.append(grads[0])
+                # print('k', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
 
                 if do_classifier_free_guidance or do_adv:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     scaled_guidance_funcs.append(guidance_scale * (noise_pred_text - noise_pred_uncond))
+                # print('z', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
 
                 noise_pred = noise_pred_uncond + sum(scaled_guidance_funcs)
 
@@ -820,6 +846,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                 # compute the previous noisy sample x_t -> x_t-1
                 latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
+                # print('v', nvidia_smi.nvmlDeviceGetMemoryInfo(handle).free)
 
                 # call the callback, if provided
                 if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
