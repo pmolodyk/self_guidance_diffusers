@@ -33,7 +33,8 @@ from ..pipeline_utils import DiffusionPipeline
 from .pipeline_output import StableDiffusionPipelineOutput
 from .safety_checker import StableDiffusionSafetyChecker
 
-from yolov7.load_adv import *
+from diffusers.adversarial.load_target_model import get_dataloader, get_model
+from yolov7.data import load_data
 from yolov7.utils.loss import ComputeLoss
 from yolov7.utils.torch_utils import TPSGridGen
 from yolo2.utils import get_det_loss

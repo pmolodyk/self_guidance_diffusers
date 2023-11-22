@@ -2,17 +2,17 @@ import torch
 import yaml
 import warnings
 
+from utils.google_utils import attempt_download
 from yolov7.utils.general import check_file, check_dataset
 from yolov7.utils.torch_utils import intersect_dicts
 from yolov7.data import load_data
-from diffusers.adversarial.utils.google_utils import attempt_download
 from yolov7.models.yolo import Model
 from yolo2.darknet import Darknet
 
 import sys
 
-
-def get_dataloader(adv_batch_size, adv_model='yolov7'):
+# Load Inria dataset
+def get_dataloader(adv_batch_size, adv_model='yolov2'):
     if adv_model != 'yolov2':
         warnings.warn(f"The dataset is customized for yolov2, but used {adv_model}")
     imgsz = 416  # standard for Inria
@@ -25,7 +25,7 @@ def get_dataloader(adv_batch_size, adv_model='yolov7'):
     return adv_dataloader, data_dict
 
 
-def get_model(data_dict, device, adv_model='yolov7'):
+def get_model(data_dict, device, adv_model='yolov2'):
     if adv_model == 'yolov7':
         sys.path.insert(0, './yolov7')  # to get the model weights
         weights = 'yolov7/yolov7.pt'

@@ -11,7 +11,7 @@ from tqdm import tqdm
 from yolov7.data import load_data
 from yolov7.models.yolo import Model
 from yolov7.utils.general import init_seeds, check_dataset, check_file
-from yolov7.utils.google_utils import attempt_download
+from diffusers.adversarial.utils.google_utils import attempt_download
 from yolov7.utils.loss import ComputeLoss
 from yolov7.utils.torch_utils import select_device, intersect_dicts
 
