@@ -34,6 +34,7 @@ from .pipeline_output import StableDiffusionPipelineOutput
 from .safety_checker import StableDiffusionSafetyChecker
 
 from diffusers.adversarial.load_target_model import get_dataloader, get_model
+from diffusers.adversarial.schedulers import CoefficientScheduler
 from yolov7.data import load_data
 from yolov7.utils.loss import ComputeLoss
 from yolov7.utils.torch_utils import TPSGridGen
@@ -598,7 +599,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             save_attn_maps: bool = False,
             adv_guidance_scale: float = 1000.0,
             adv_batch_size: int = 0,
-            adv_model: str = "yolov2"
+            adv_model: str = "yolov2",
+            adv_scale_schedule_dict: dict = None,
     ):
         r"""
         The call function to the pipeline for generation.
@@ -668,6 +670,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 second element is a list of `bool`s indicating whether the corresponding generated image contains
                 "not-safe-for-work" (nsfw) content.
         """
+        if adv_scale_schedule_dict is None:
+            adv_scale_schedule_dict = dict()
+
         # 0. Default height and width to unet
         height = height or self.unet.config.sample_size * self.vae_scale_factor
         width = width or self.unet.config.sample_size * self.vae_scale_factor
@@ -753,6 +758,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             tps = TPSGridGen(torch.Size([512, 512]))
             patch_transformer = load_data.PatchTransformer().to(device)
             patch_applier = load_data.PatchApplier().to(device)
+            adv_scale_scheduler = CoefficientScheduler(adv_scale_schedule_dict, adv_guidance_scale)
 
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
@@ -857,6 +863,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     if callback is not None and i % callback_steps == 0:
                         step_idx = i // getattr(self.scheduler, "order", 1)
                         callback(step_idx, t, latents)
+
+                if do_adv:
+                    adv_guidance_scale = adv_scale_scheduler.step(i)
 
         if not output_type == "latent":
             image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
