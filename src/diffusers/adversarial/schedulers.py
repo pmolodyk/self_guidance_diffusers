@@ -4,8 +4,11 @@ class CoefficientScheduler:
         self.coefficient = initial_value
 
         val_key = sorted([(index, value) for index, value in changes_dict.items()])
-
-        self.indices, self.values = zip(*val_key)
+        if len(val_key) == 0:
+            self.indices = list()
+            self.values = list()
+        else:
+            self.indices, self.values = zip(*val_key)
 
     def step(self, iter_num):
         if self.position >= len(self.indices):
