@@ -30,6 +30,7 @@ parser.add_argument('--device', default='cuda:0', help='')
 parser.add_argument('--suffix', default='tbd', help='suffix name')
 parser.add_argument('--prepare-data', default=False, action='store_true', help='')
 parser.add_argument('--load-path', default=None, help='load patch')
+parser.add_argument('--mask', type=str, default=None, help='ex: adv_500*')
 pargs = parser.parse_args()
 
 
@@ -130,7 +131,7 @@ def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thr
 
     with torch.no_grad():
         positives = []
-        for batch_idx, (data, target) in tqdm(enumerate(loader), total=batch_num, position=0):
+        for batch_idx, (data, target) in enumerate(loader):
             data = data.to(device)
 
             if adv_patch is not None:
@@ -139,7 +140,6 @@ def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thr
                                                 pooling='median', old_fasion=old_fasion)
                 data = patch_applier(data, adv_batch_t)
             if batch_idx == 0:
-                print(data[0].mean())
                 patched_sample = transforms.ToPILImage()(np.uint8((data[0] * 255).permute(1, 2, 0).detach().cpu().numpy()))
                 patched_sample.save('tbd.png')
             output = model(data)
@@ -212,13 +212,16 @@ save_path = os.path.join(save_dir, pargs.suffix)
 plt.figure(figsize=[10, 10])
 if pargs.load_path is not None:
     if os.path.isdir(pargs.load_path):
-        img_paths = glob.glob(f'{pargs.load_path}/*.png') + glob.glob(f'{pargs.load_path}/*.npy')
-        img_paths = sorted(img_paths, key=lambda x: int(x.split('_')[-1][:-4]))
+        if pargs.mask is None:
+            img_paths = glob.glob(f'{pargs.load_path}/*.png') + glob.glob(f'{pargs.load_path}/*.npy')
+        else:
+            img_paths = glob.glob(f'{pargs.load_path}/{pargs.mask}')
         print(img_paths)
     else:
         img_paths = [pargs.load_path]
     cmap = plt.cm.coolwarm(np.linspace(0, 1, len(img_paths)))
-    for i, img_path in enumerate(img_paths):
+    res = []
+    for i, img_path in tqdm(enumerate(img_paths), total=len(img_paths)):
         try:
             patch = torch.from_numpy(np.load(img_path)[:1]).to(device)
         except ValueError:
@@ -227,11 +230,15 @@ if pargs.load_path is not None:
 
         test_patch = patch.detach().clone()
         prec, rec, ap, confs = test(darknet_model, test_loader, adv_patch=test_patch, conf_thresh=0.01, old_fasion=True)
-
+        res.append((img_path, prec, rec, ap))
         np.savez(save_path, prec=prec, rec=rec, ap=ap, confs=confs, adv_patch=test_patch.detach().cpu().numpy())
-        print('AP is %.4f'% ap)
+    
+    res = sorted(res, key=lambda x: -x[-1])
+    for i in range(len(res)):
+        img_path, prec, rec, ap = res[i]
+        print('AP is %.4f'% ap, f'for {img_path[:-4]}')
         plt.plot(rec, prec, color=cmap[i], label=img_path.split('.')[0].split('/')[-1] + ': ap %.3f' % ap)
-        # unloader(patch[0]).save(save_path + '.png')
+
 else:
     prec, rec, ap, confs = test(darknet_model, test_loader, conf_thresh=0.01, old_fasion=True)
     print('AP is %.4f'% ap)

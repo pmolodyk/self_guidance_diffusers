@@ -2,7 +2,7 @@ import torch
 import yaml
 import warnings
 
-from diffusers.adversarial.utils.google_utils import attempt_download
+from src.diffusers.adversarial.utils.google_utils import attempt_download
 from yolov7.utils.general import check_file, check_dataset
 from yolov7.utils.torch_utils import intersect_dicts
 from yolov7.data import load_data
