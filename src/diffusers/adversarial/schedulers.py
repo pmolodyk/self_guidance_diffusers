@@ -24,7 +24,6 @@ class LinearScheduler(CoefficientScheduler):
                               initial_value)
 
 
-
 def get_scheduler(type, changes_dict, initial_value, n_steps): 
     if type == 'basic':
         return CoefficientScheduler(changes_dict, initial_value)
