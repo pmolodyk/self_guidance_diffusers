@@ -598,6 +598,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             self_guidance_scale: float = 7500.0,
             self_guidance_dict: dict = dict(),
             save_attn_maps: bool = False,
+            self_guidance_precalculate_steps: int = 0,
             adv_guidance_scale: float = 1000.0,
             adv_batch_size: int = 0,
             adv_model: str = "yolov2",
@@ -707,6 +708,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         text_encoder_lora_scale = (
             cross_attention_kwargs.get("scale", None) if cross_attention_kwargs is not None else None
         )
+
+        initial_prompt_embeds = prompt_embeds.clone() if prompt_embeds is not None else None
+
         prompt_embeds, negative_prompt_embeds = self.encode_prompt(
             prompt,
             device,
@@ -758,9 +762,24 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
 
-        # List to save the initial attn maps to allow for relative edits
-        self.initial_maps = []
+        # List to save the initial attn maps and activations to allow for relative edits
+        try:
+            num_maps = len(self.initial_maps)
+            num_acts = len(self.initial_activations)
+            if save_attn_maps:
+                self.initial_maps = []
+                self.initial_activations = []
+        except:
+            self.initial_maps = []
+            self.initial_activations = []
 
+        if do_self_guidance and self_guidance_precalculate_steps > 0:
+            print('Calculating attention maps and activations')
+            self(prompt, height, width, self_guidance_precalculate_steps, guidance_scale, negative_prompt,
+                 num_images_per_prompt, eta, generator, latents, initial_prompt_embeds, negative_prompt_embeds,
+                 output_type, return_dict, callback, callback_steps, cross_attention_kwargs, guidance_rescale,
+                 clip_skip, 0.0, {}, True, 0)
+        
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
                 if do_self_guidance or do_adv:
@@ -772,7 +791,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 # Save attn maps to get loss later
                 attn_controls = []
                 actv_controls = []
-                if do_self_guidance:
+                if do_self_guidance or save_attn_maps:
                     register_attention_layers_recr(self.unet, attn_controls)
                     register_activation_recr(self.unet, actv_controls)
 
@@ -783,6 +802,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     encoder_hidden_states=prompt_embeds,
                     cross_attention_kwargs=cross_attention_kwargs,
                     return_dict=False,
+                    has_self_guidance=(do_self_guidance or save_attn_maps),
                 )[0]
 
                 if save_every != -1 and not do_adv and (i + 1) % save_every == 0:
@@ -795,20 +815,23 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 scaled_guidance_funcs = []
 
                 # self guidance attn maps
-                if do_self_guidance:
+                if do_self_guidance or save_attn_maps:
                     attn_maps = []
+                    actv_maps = []
                     for recorder in attn_controls:
                         if recorder.maps is not None:
                             for j in range(recorder.maps.shape[0]):
                                 attn_maps.append(recorder.maps[j, :, :])
-                                if i == 0:
-                                    self.initial_maps.append(recorder.maps[j, :, :])
-                                if save_attn_maps:
-                                    self.output_maps.append((t, recorder.maps[j, :, :].detach().cpu()))
-
-                    sg_loss = self_guidance_loss(attn_maps, self_guidance_dict, self.initial_maps) * self_guidance_scale
-                    scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
-
+                                if save_attn_maps and i == len(timesteps) - 1:
+                                    self.initial_maps.append(recorder.maps[j, :, :].detach().cpu())
+                    for recorder in actv_controls:
+                        if recorder.recorded_appearance is not None:
+                            actv_maps.append((recorder.recorded_appearance, recorder.recorded_maps))
+                            if save_attn_maps and i == len(timesteps) - 1:
+                                self.initial_activations.append((recorder.recorded_appearance, recorder.recorded_maps))
+                    if do_self_guidance:
+                        sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps, self.initial_activations) * self_guidance_scale
+                        scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
                 # Adversarial guidance
                 if do_adv:
                     imgs, targets, targets_padded = next(iter(adv_dataloader))

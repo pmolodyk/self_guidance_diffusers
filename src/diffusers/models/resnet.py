@@ -610,8 +610,6 @@ class ResnetBlock2D(nn.Module):
             hidden_states = self.norm1(hidden_states)
 
         hidden_states = self.nonlinearity(hidden_states)
-        if self.feature_map_recorder is not None:
-            self.feature_map_recorder.activation_maps.append(hidden_states)
 
         if self.upsample is not None:
             # upsample_nearest_nhwc fails with large batch sizes. see https://github.com/huggingface/diffusers/issues/984
@@ -660,9 +658,6 @@ class ResnetBlock2D(nn.Module):
             hidden_states = hidden_states * (1 + scale) + shift
 
         hidden_states = self.nonlinearity(hidden_states)
-        if self.feature_map_recorder is not None:
-            self.feature_map_recorder.activation_maps.append(hidden_states)
-
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.conv2(hidden_states, scale)
 

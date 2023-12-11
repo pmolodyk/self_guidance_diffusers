@@ -62,13 +62,15 @@ save_every = int(pargs.save_every)
 if pargs.type == 'standard':
     print('Standard pipe')
     out = pipe(height=height, width=width, prompt=prompt, latents=latents,
-              num_inference_steps=num_inference_steps, save_every=save_every)
+               num_inference_steps=num_inference_steps, save_every=save_every)
     name = f'basic_{num_inference_steps}'
 elif pargs.type == 'self':
     print('Self-guided pipe')
-    self_guidance_dict = {"size": {"mode": "relative", "indices": [2], "values": [2.0]}}
-    out = pipe(height=height, width=width, prompt=prompt, latents=latents, self_guidance_scale=15.0,
-              num_inference_steps=num_inference_steps, self_guidance_dict=self_guidance_dict, save_every=save_every)
+    self_guidance_dict = {"size": {"mode": "relative", "indices": [5], "values": [0.01]}}
+    self_guidance_dict = {"position": {"mode": "relative", "indices": [5], "values": [0.01]}}
+    out = pipe(height=height, width=width, prompt=prompt, latents=latents, self_guidance_scale=15., 
+               num_inference_steps=num_inference_steps, self_guidance_dict=self_guidance_dict, save_every=save_every,
+               self_guidance_precalculate_steps=num_inference_steps)
     name = 'enlarged'
 elif pargs.type == 'adv':
     print('Adv pipe')
