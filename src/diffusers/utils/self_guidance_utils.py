@@ -95,6 +95,8 @@ def self_guidance_loss(attn_maps: list, actv_maps: list, self_guidance_dict: dic
                     target_value = size_values[i]
                 else:
                     target_value = size_fn(threshold_map(initial_map[:, :, index])) * size_values[i]
+                if j == 0 and i == 1:
+                    print(calc_size, target_value)
                 loss += torch.abs(calc_size - target_value) * size_weight
         # Position losses
         if "position" in self_guidance_dict:
@@ -129,16 +131,5 @@ def self_guidance_loss(attn_maps: list, actv_maps: list, self_guidance_dict: dic
 
         for i, index in enumerate(appearance_indices):
             for k, actual_activation in enumerate(actv_maps):
-                uncond_sz = actual_activation[1].shape[0] // 2
-                token_len = actual_activation[1].shape[-1]
-                hw = int(np.sqrt(actual_activation[1].shape[1]))
-
-                actual_attn_map = actual_activation[1][uncond_sz:, :, :].mean(dim=0).reshape(hw, hw, token_len)
-                desired_attn_map = initial_activations[k][1][uncond_sz:, :, :].mean(dim=0).reshape(hw, hw,
-                                                                                                   token_len)
-
-                actual_appearance = (actual_activation[0].mean(dim=2) * actual_attn_map[:, :, index]).sum() / actual_attn_map[:, :, index].sum()
-                desired_appearance = (initial_activations[k][0].mean(dim=2) * desired_attn_map[:, :, index]).sum() / desired_attn_map[:, :, index].sum()
-
-                loss += torch.abs(actual_appearance - desired_appearance) * appearance_weight
+                loss += torch.nn.L1Loss()(actual_activation[0].mean(dim=2), initial_activations[k][0].mean(dim=2)) * appearance_weight
     return loss

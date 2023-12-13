@@ -782,6 +782,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
+                # do_self_guidance = i < num_inference_steps * 13 // 16 and not save_attn_maps
                 if do_self_guidance or do_adv:
                     latents = latents.detach().requires_grad_(True)
                 # expand the latents if we are doing classifier free guidance
@@ -832,24 +833,22 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     if do_self_guidance:
                         sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps, self.initial_activations) * self_guidance_scale
                         scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
+                
                 # Adversarial guidance
                 if do_adv:
                     imgs, targets, targets_padded = next(iter(adv_dataloader))
-                                # ..., [K, 6], where 6 = batch_i + c + xyw'h', K is the number of objects, old format for tps
                     imgs = imgs.to(device, non_blocking=True).float()
-                    adv_patch = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]  # [1, 3, 512, 512]
+                    adv_patch = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
                     if save_every != -1 and (i + 1) % save_every == 0:
                         img = self.image_processor.postprocess(adv_patch.detach(), output_type=output_type, do_denormalize=[True])
                         img[0].save(f'process/{i}.png')
                     with amp.autocast(enabled=device.type != 'cpu'):
                         adv_patch_tps, _ = tps.tps_trans(adv_patch, max_range=0.1, canvas=0.5, target_shape=adv_patch.shape[-2:])
                         adv_batch_t = patch_transformer(adv_patch_tps, targets_padded.to(device), 416, do_rotate=True, rand_loc=False,
-                                      pooling='median', old_fasion=False)  # this unfortunately doesn't work now because targets 
-                        adv_imgs = patch_applier(imgs, adv_batch_t)  #       look different from normal inria's targets
+                                      pooling='median', old_fasion=False)
+                        adv_imgs = patch_applier(imgs, adv_batch_t)
                         if adv_model == 'yolov7':
-                            pred = yolo(adv_imgs)  # [(bs, ch * ch * _ * _ * 7 (?), nc + 5), [(bs, ch, _ * 4, _ * 4, nc + 5), 
-                                                   #  (bs, ch, _ * 2, _ * 2,        nc + 5),  (bs, ch, _ * 1, _ * 1, nc + 5)]]
-                                                   # would have been pred[1] if we had yolo.train()
+                            pred = yolo(adv_imgs)
                             loss, _ = compute_loss(pred[1][:3], targets.to(device))
                         elif adv_model == 'yolov2':
                             loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device))
@@ -883,6 +882,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                 if do_adv:
                     adv_guidance_scale = adv_scale_scheduler.step(i)
+
+                torch.cuda.empty_cache()
 
         if not output_type == "latent":
             image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
