@@ -18,10 +18,10 @@ class CoefficientScheduler:
             self.position += 1
         return self.coefficient
 
+
 class LinearScheduler(CoefficientScheduler):
     def __init__(self, n_steps: int, initial_value: float, final_value: float):
-        super().__init__(dict(zip(range(n_steps), np.linspace(initial_value, final_value, n_steps))), 
-                              initial_value)
+        super().__init__(dict(zip(range(n_steps), np.linspace(initial_value, final_value, n_steps))), initial_value)
 
 
 def get_scheduler(type, changes_dict, initial_value, n_steps): 

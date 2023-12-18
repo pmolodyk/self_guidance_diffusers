@@ -769,7 +769,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             if save_attn_maps:
                 self.initial_maps = []
                 self.initial_activations = []
-        except:
+        except:  # This is a very bad way of checking if they already exist
             self.initial_maps = []
             self.initial_activations = []
 
@@ -829,7 +829,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                         if recorder.recorded_appearance is not None:
                             actv_maps.append((recorder.recorded_appearance, recorder.recorded_maps))
                             if save_attn_maps and i == len(timesteps) - 1:
-                                self.initial_activations.append((recorder.recorded_appearance, recorder.recorded_maps))
+                                self.initial_activations.append((recorder.recorded_appearance.detach().clone(), recorder.recorded_maps.detach().clone()))
                     if do_self_guidance:
                         sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps, self.initial_activations) * self_guidance_scale
                         scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
