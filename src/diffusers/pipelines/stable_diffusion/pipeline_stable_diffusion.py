@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import inspect
+from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import os
@@ -763,15 +764,16 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
 
         # List to save the initial attn maps and activations to allow for relative edits
+        # List to save the initial attn maps and activations to allow for relative edits
         try:
             num_maps = len(self.initial_maps)
             num_acts = len(self.initial_activations)
             if save_attn_maps:
-                self.initial_maps = []
-                self.initial_activations = []
+                self.initial_maps = defaultdict(list)
+                self.initial_activations = defaultdict(list)
         except:  # This is a very bad way of checking if they already exist
-            self.initial_maps = []
-            self.initial_activations = []
+            self.initial_maps = defaultdict(list)
+            self.initial_activations = defaultdict(list)
 
         if do_self_guidance and self_guidance_precalculate_steps > 0:
             print('Calculating attention maps and activations')
@@ -823,15 +825,18 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                         if recorder.maps is not None:
                             for j in range(recorder.maps.shape[0]):
                                 attn_maps.append(recorder.maps[j, :, :])
-                                if save_attn_maps and i == len(timesteps) - 1:
-                                    self.initial_maps.append(recorder.maps[j, :, :].detach().cpu())
+                                if save_attn_maps:
+                                    self.initial_maps[i].append(recorder.maps[j, :, :].detach().clone())
                     for recorder in actv_controls:
-                        if recorder.recorded_appearance is not None:
-                            actv_maps.append((recorder.recorded_appearance, recorder.recorded_maps))
-                            if save_attn_maps and i == len(timesteps) - 1:
-                                self.initial_activations.append((recorder.recorded_appearance.detach().clone(), recorder.recorded_maps.detach().clone()))
+                        if recorder.recorded_maps is not None:
+                            for j in range(recorder.recorded_maps.shape[0]):
+                                actv_maps.append((recorder.recorded_appearance, recorder.recorded_maps[j]))
+                                if save_attn_maps:
+                                    self.initial_activations[i].append(
+                                        (recorder.recorded_appearance, recorder.recorded_maps[j].detach().clone()))
                     if do_self_guidance:
-                        sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps, self.initial_activations) * self_guidance_scale
+                        sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps[i],
+                                                     self.initial_activations[i]) * self_guidance_scale
                         scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
                 
                 # Adversarial guidance

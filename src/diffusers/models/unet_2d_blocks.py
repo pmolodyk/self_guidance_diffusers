@@ -2269,7 +2269,7 @@ class CrossAttnUpBlock2D(nn.Module):
             else:
                 hidden_states = resnet(hidden_states, temb, scale=lora_scale)
                 if record_appearance and i == len(res_att) - 1:
-                    resnet.feature_map_recorder.recorded_appearance = hidden_states[1, :, :, :].clone().permute(1, 2, 0)
+                    resnet.feature_map_recorder.recorded_appearance = hidden_states[1, :, :, :].permute(1, 2, 0)
                 hidden_states = attn(
                     hidden_states,
                     encoder_hidden_states=encoder_hidden_states,
@@ -2279,7 +2279,7 @@ class CrossAttnUpBlock2D(nn.Module):
                     return_dict=False,
                 )[0]
                 if record_appearance and i == len(res_att) - 1:
-                    resnet.feature_map_recorder.recorded_maps = attn.transformer_blocks[-1].attn2.processor.attn_recorder.maps.clone().detach()
+                    resnet.feature_map_recorder.recorded_maps = attn.transformer_blocks[-1].attn2.processor.attn_recorder.maps
 
         if self.upsamplers is not None:
             for upsampler in self.upsamplers:
