@@ -102,8 +102,6 @@ def get_adv_imgs(adv_patch, pipeline, targets_all, tps=None, patch_transformer=N
     device = adv_patch.device
     imgsz = 416
     if pipeline == '3d':
-        for texture in renderer.textures:
-            texture.tex_map = adv_patch
         adv_imgs, targets = renderer.forward(
             imgs,
             resample=batch_idx % 20 == 0 or batch_idx == len(trainloader) - 1,
@@ -111,8 +109,6 @@ def get_adv_imgs(adv_patch, pipeline, targets_all, tps=None, patch_transformer=N
             tex_kwargs=dict(tex_map=adv_patch),
             render_kwargs=dict(use_tps2d=True, use_tps3d=True),
         )
-        for texture in renderer.textures:
-            print(texture.tex_map.requires_grad)
         targets_padded = targets2padded(targets)  # maybe wrong
     elif pipeline == 'standard':
         targets, targets_padded = targets_all
@@ -134,7 +130,6 @@ def get_renderer(device):
         patch_crop_test = patch_crop
         patch_crops.extend([patch_crop, patch_crop_test])
         texture = SimpleTexture(map_size, map_size=torch.Size([256, 256]), tile=True, tile_size=128, device=device)
-        # torch.nn.init.uniform_(texture.tex_map)
         textures.append(texture.to(device))
 
     img_synthesizer = ImageSynthesizer(

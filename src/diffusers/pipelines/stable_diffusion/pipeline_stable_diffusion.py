@@ -860,10 +860,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     if save_every != -1 and (i + 1) % save_every == 0:
                         img = self.image_processor.postprocess(adv_patch.detach(), output_type=output_type, do_denormalize=[True])
                         img[0].save(f'process/{i}.png')
-                    print('adv_patch', adv_patch.requires_grad)
                     adv_imgs, targets_padded = get_adv_imgs(adv_patch, pipeline, targets_all, tps, patch_transformer,
                                                             patch_applier, imgs, renderer, batch_idx, adv_dataloader)
-                    print('adv_imgs1', adv_imgs.requires_grad)
                     if adv_model == 'yolov7':
                         pred = yolo(adv_imgs)
                         loss, _ = compute_loss(pred[1][:3], targets_all[0].to(device))
@@ -872,10 +870,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                         if valid_num > 0:
                             loss = loss / valid_num
 
-                    print('latents', latents.requires_grad)
-                    print('loss', loss.requires_grad)
                     grads = torch.autograd.grad(adv_guidance_scale * loss, latents)
-                    print('autograd done')
                     scaled_guidance_funcs.append(grads[0])
 
                 if do_classifier_free_guidance:
