@@ -1,14 +1,13 @@
 import logging
-from typing import Optional
-
+from math import ceil
 import torch
-import torch.nn.functional as F
 from torch import Tensor, nn
+import torch.nn.functional as F
 from torch.nn import Module
+from typing import Optional
 
 from src.diffusers.models.tv_loss import total_variation
 from src.diffusers.utils.typing_utils import _pair, _size_2_t
-
 from src.diffusers.rendering.texture.i_texture import ITexture
 
 
@@ -26,6 +25,9 @@ class SimpleTexture(ITexture):
         fig_size: _size_2_t,
         map_size: Optional[_size_2_t] = None,
         color_transform: Module = nn.Identity(),
+        tile: bool = False,
+        tile_size: int = 128,
+        device: str = "cuda",
     ) -> None:
         super().__init__()
         self.fig_size = _pair(fig_size)
@@ -36,9 +38,13 @@ class SimpleTexture(ITexture):
             self.map_size = _pair(map_size)
             self.do_interpolate = True
         self.color_transform = color_transform
-        self.tex_map = nn.Parameter(torch.empty((1, 3) + self.map_size))
+        # self.tex_map = nn.Parameter(torch.empty((1, 3) + self.map_size)).to(device)
         # nn.init.constant_(self.tex_map, 0.5)  # Init as gray
+        # self.tex_map = torch.Tensor(torch.empty((1, 3) + self.map_size)).to(device)
+        self.tex_map = None
         self._WARNED_PATCH_NAN_OR_INF = False
+        self.tile = tile
+        self.tile_size = tile_size
 
     def forward(
         self,
@@ -48,7 +54,13 @@ class SimpleTexture(ITexture):
         if tex_map is None:
             tex_map = self.tex_map
         if self.do_interpolate:
-            tex = F.interpolate(tex_map, self.fig_size)
+            if self.tile:
+                base_tile = F.interpolate(tex_map, self.tile_size)
+                mults = [ceil(self.fig_size[-2 + i] / self.tile_size) for i in range(2)]
+                patch_tiled = torch.tile(base_tile, mults)
+                tex = patch_tiled[:, :, :self.fig_size[-2], :self.fig_size[-1]]
+            else:
+                tex = F.interpolate(tex_map, self.fig_size)
         else:
             tex = tex_map
         if transform_color:

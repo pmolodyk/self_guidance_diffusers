@@ -35,7 +35,7 @@ from ..pipeline_utils import DiffusionPipeline
 from .pipeline_output import StableDiffusionPipelineOutput
 from .safety_checker import StableDiffusionSafetyChecker
 
-from src.diffusers.adversarial.load_target_model import get_dataloader, get_model
+from src.diffusers.adversarial.load_target_model import get_dataloader, get_model, get_adv_imgs, get_renderer
 from src.diffusers.adversarial.schedulers import get_scheduler
 from yolov7.data import load_data
 from yolov7.utils.loss import ComputeLoss
@@ -606,6 +606,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             adv_scale_schedule_dict: dict = dict(),
             adv_scale_schedule_type: str = "basic",
             save_every: int = -1,
+            pipeline: str = '3d',
     ):
         r"""
         The call function to the pipeline for generation.
@@ -752,12 +753,18 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
         # 6.5 Prepare model & dataset for generating an adversarial patch
         if do_adv:
-            adv_dataloader, data_dict = get_dataloader(adv_batch_size)  # Inria
-            yolo = get_model(data_dict, device, adv_model)  # Yolo
+            adv_dataloader, _ = get_dataloader(adv_batch_size, pipeline=pipeline)  # Inria | Background
+            yolo = get_model(None, device, adv_model)  # Yolo
             compute_loss = ComputeLoss(yolo) if adv_model == 'yolov7' else get_det_loss
-            tps = TPSGridGen(torch.Size([512, 512]))
-            patch_transformer = load_data.PatchTransformer().to(device)
-            patch_applier = load_data.PatchApplier().to(device)
+            tps, patch_transformer, patch_applier, renderer = None, None, None, None
+            if pipeline == 'standard':
+                tps = TPSGridGen(torch.Size([512, 512])) 
+                patch_transformer = load_data.PatchTransformer().to(device)
+                patch_applier = load_data.PatchApplier().to(device)
+            elif pipeline == '3d':
+                renderer = get_renderer(device)
+            else:
+                raise ValueError(f"Unknown pipeline {pipeline}")
             adv_scale_scheduler = get_scheduler(adv_scale_schedule_type, adv_scale_schedule_dict, adv_guidance_scale, num_inference_steps)
 
         # 7. Denoising loop
@@ -781,7 +788,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                  num_images_per_prompt, eta, generator, latents, initial_prompt_embeds, negative_prompt_embeds,
                  output_type, return_dict, callback, callback_steps, cross_attention_kwargs, guidance_rescale,
                  clip_skip, 0.0, {}, True, 0)
-        
+
+        batch_idx = -1
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
                 # do_self_guidance = i < num_inference_steps * 13 // 16 and not save_attn_maps
@@ -841,26 +849,33 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 
                 # Adversarial guidance
                 if do_adv:
-                    imgs, targets, targets_padded = next(iter(adv_dataloader))
-                    imgs = imgs.to(device, non_blocking=True).float()
+                    next_iter = next(iter(adv_dataloader))  # targets, targets_padded
+                    if pipeline == '3d':
+                        imgs, targets_all = next_iter
+                    elif pipeline == 'standard':
+                        imgs, targets_all = next_iter[0], next_iter[1:]
+                    batch_idx += 1
+                    imgs = imgs.to(device, non_blocking=True)
                     adv_patch = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
                     if save_every != -1 and (i + 1) % save_every == 0:
                         img = self.image_processor.postprocess(adv_patch.detach(), output_type=output_type, do_denormalize=[True])
                         img[0].save(f'process/{i}.png')
-                    with amp.autocast(enabled=device.type != 'cpu'):
-                        adv_patch_tps, _ = tps.tps_trans(adv_patch, max_range=0.1, canvas=0.5, target_shape=adv_patch.shape[-2:])
-                        adv_batch_t = patch_transformer(adv_patch_tps, targets_padded.to(device), 416, do_rotate=True, rand_loc=False,
-                                      pooling='median', old_fasion=False)
-                        adv_imgs = patch_applier(imgs, adv_batch_t)
-                        if adv_model == 'yolov7':
-                            pred = yolo(adv_imgs)
-                            loss, _ = compute_loss(pred[1][:3], targets.to(device))
-                        elif adv_model == 'yolov2':
-                            loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device))
-                            if valid_num > 0:
-                                loss = loss / valid_num
+                    print('adv_patch', adv_patch.requires_grad)
+                    adv_imgs, targets_padded = get_adv_imgs(adv_patch, pipeline, targets_all, tps, patch_transformer,
+                                                            patch_applier, imgs, renderer, batch_idx, adv_dataloader)
+                    print('adv_imgs1', adv_imgs.requires_grad)
+                    if adv_model == 'yolov7':
+                        pred = yolo(adv_imgs)
+                        loss, _ = compute_loss(pred[1][:3], targets_all[0].to(device))
+                    elif adv_model == 'yolov2':
+                        loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device))
+                        if valid_num > 0:
+                            loss = loss / valid_num
 
+                    print('latents', latents.requires_grad)
+                    print('loss', loss.requires_grad)
                     grads = torch.autograd.grad(adv_guidance_scale * loss, latents)
+                    print('autograd done')
                     scaled_guidance_funcs.append(grads[0])
 
                 if do_classifier_free_guidance:

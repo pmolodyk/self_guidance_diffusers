@@ -22,6 +22,7 @@ parser.add_argument('--scale-type', default='basic', type=str, help='guidance sc
 parser.add_argument('--input-image', default='', type=str, help='input image')
 parser.add_argument('--fix-appearance', default=False, action="store_true", help='use self guidance for fixing appearance')
 parser.add_argument('--self-guidance-scale', default=1000, type=float, help='self guidance scale')
+parser.add_argument('--pipeline', default='3d', type=str, help='standard|3d')
 
 pargs = parser.parse_args()
 
@@ -59,7 +60,7 @@ prompt = pargs.prompt  # "colorful cat drawing"  # palm clothes pattern
 
 for p in pipe.unet.parameters():
     p.requires_grad = False
-
+ 
 for p in pipe.text_encoder.parameters():
     p.requires_grad = False
 
@@ -87,9 +88,9 @@ elif pargs.type == 'self':
     print('Self-guided pipe')
     pos = torch.tensor([10.10, 10.10]).to(device)
     self_guidance_dict = {}
-    self_guidance_dict["position"] = {"mode": "relative", "indices": [1], "values": [pos], "weight": 0.001}
-    self_guidance_dict["appearance"] = {"indices": [2, 3, 4], "weight": 0.1}
-    # self_guidance_dict["size"] = {"mode": "relative", "indices": [1], "values": [0.2], "weight": 0.02}
+    # self_guidance_dict["position"] = {"mode": "relative", "indices": [1], "values": [pos], "weight": 0.001}
+    # self_guidance_dict["appearance"] = {"indices": [2, 3, 4], "weight": 0.1}
+    self_guidance_dict["size"] = {"mode": "relative", "indices": [1], "values": [0.1], "weight": 0.02}
     out = pipe(height=height, width=width, prompt=prompt, latents=latents, self_guidance_scale=self_guidance_scale, 
                num_inference_steps=num_inference_steps, self_guidance_dict=self_guidance_dict, save_every=save_every,
                self_guidance_precalculate_steps=num_inference_steps)
@@ -114,7 +115,8 @@ elif pargs.type == 'adv':
             num_inference_steps=num_inference_steps, self_guidance_scale=self_guidance_scale, 
             adv_guidance_scale=adv_guidance_scale, adv_batch_size=24, adv_model='yolov2',
             guidance_scale=guidance_scale, save_every=save_every, adv_scale_schedule_dict=adv_scale_schedule_dict,
-            adv_scale_schedule_type=pargs.scale_type, self_guidance_precalculate_steps=num_inference_steps)
+            adv_scale_schedule_type=pargs.scale_type, self_guidance_precalculate_steps=num_inference_steps,
+            pipeline=pargs.pipeline)
 
 else:    
     raise ValueError(f"incorrect type {pargs.type}")
