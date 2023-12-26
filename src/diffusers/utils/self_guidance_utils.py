@@ -131,6 +131,7 @@ def self_guidance_loss(attn_maps: list, actv_maps: list, self_guidance_dict: dic
 
         for i, index in enumerate(appearance_indices):
             for k, actual_activation in enumerate(actv_maps):
+                device = actual_activation[1].device
                 token_len = actual_activation[1].shape[-1]
                 hw = int(np.sqrt(actual_activation[1].shape[0]))
                 actual_attn_map = actual_activation[1][:, :].reshape(hw, hw, token_len)
@@ -143,5 +144,5 @@ def self_guidance_loss(attn_maps: list, actv_maps: list, self_guidance_dict: dic
                                                                               index]) / desired_attn_map[:, :,
                                                                                         index].sum()
                 # print(actual_appearance.shape, desired_appearance.shape)
-                loss += torch.nn.L1Loss()(actual_appearance, desired_appearance) * appearance_weight
+                loss += torch.nn.L1Loss()(actual_appearance, desired_appearance.to(device)) * appearance_weight
     return loss

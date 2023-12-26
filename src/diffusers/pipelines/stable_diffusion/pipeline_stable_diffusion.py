@@ -18,7 +18,6 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 import os
 import torch
-from torch.cuda import amp
 from packaging import version
 from transformers import CLIPImageProcessor, CLIPTextModel, CLIPTokenizer
 
@@ -229,38 +228,6 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         """
         self.vae.disable_tiling()
 
-    def _encode_prompt(
-            self,
-            prompt,
-            device,
-            num_images_per_prompt,
-            do_classifier_free_guidance,
-            negative_prompt=None,
-            prompt_embeds: Optional[torch.FloatTensor] = None,
-            negative_prompt_embeds: Optional[torch.FloatTensor] = None,
-            lora_scale: Optional[float] = None,
-            **kwargs,
-    ):
-        deprecation_message = "`_encode_prompt()` is deprecated and it will be removed in a future version. Use `encode_prompt()` instead. Also, be aware that the output format changed from a concatenated tensor to a tuple."
-        deprecate("_encode_prompt()", "1.0.0", deprecation_message, standard_warn=False)
-
-        prompt_embeds_tuple = self.encode_prompt(
-            prompt=prompt,
-            device=device,
-            num_images_per_prompt=num_images_per_prompt,
-            do_classifier_free_guidance=do_classifier_free_guidance,
-            negative_prompt=negative_prompt,
-            prompt_embeds=prompt_embeds,
-            negative_prompt_embeds=negative_prompt_embeds,
-            lora_scale=lora_scale,
-            **kwargs,
-        )
-
-        # concatenate for backwards comp
-        prompt_embeds = torch.cat([prompt_embeds_tuple[1], prompt_embeds_tuple[0]])
-
-        return prompt_embeds
-
     def encode_prompt(
             self,
             prompt,
@@ -456,17 +423,6 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             )
         return image, has_nsfw_concept
 
-    def decode_latents(self, latents):
-        deprecation_message = "The decode_latents method is deprecated and will be removed in 1.0.0. Please use VaeImageProcessor.postprocess(...) instead"
-        deprecate("decode_latents", "1.0.0", deprecation_message, standard_warn=False)
-
-        latents = 1 / self.vae.config.scaling_factor * latents
-        image = self.vae.decode(latents, return_dict=False)[0]
-        image = (image / 2 + 0.5).clamp(0, 1)
-        # we always cast to float32 as this does not cause significant overhead and is compatible with bfloat16
-        image = image.cpu().permute(0, 2, 3, 1).float().numpy()
-        return image
-
     def prepare_extra_step_kwargs(self, generator, eta):
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
         # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
@@ -547,32 +503,6 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # scale the initial noise by the standard deviation required by the scheduler
         latents = latents * self.scheduler.init_noise_sigma
         return latents
-
-    def enable_freeu(self, s1: float, s2: float, b1: float, b2: float):
-        r"""Enables the FreeU mechanism as in https://arxiv.org/abs/2309.11497.
-
-        The suffixes after the scaling factors represent the stages where they are being applied.
-
-        Please refer to the [official repository](https://github.com/ChenyangSi/FreeU) for combinations of the values
-        that are known to work well for different pipelines such as Stable Diffusion v1, v2, and Stable Diffusion XL.
-
-        Args:
-            s1 (`float`):
-                Scaling factor for stage 1 to attenuate the contributions of the skip features. This is done to
-                mitigate "oversmoothing effect" in the enhanced denoising process.
-            s2 (`float`):
-                Scaling factor for stage 2 to attenuate the contributions of the skip features. This is done to
-                mitigate "oversmoothing effect" in the enhanced denoising process.
-            b1 (`float`): Scaling factor for stage 1 to amplify the contributions of backbone features.
-            b2 (`float`): Scaling factor for stage 2 to amplify the contributions of backbone features.
-        """
-        if not hasattr(self, "unet"):
-            raise ValueError("The pipeline must have `unet` for using FreeU.")
-        self.unet.enable_freeu(s1=s1, s2=s2, b1=b1, b2=b2)
-
-    def disable_freeu(self):
-        """Disables the FreeU mechanism if enabled."""
-        self.unet.disable_freeu()
 
     @replace_example_docstring(EXAMPLE_DOC_STRING)
     def __call__(
@@ -680,13 +610,15 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # 0. Default height and width to unet
         height = height or self.unet.config.sample_size * self.vae_scale_factor
         width = width or self.unet.config.sample_size * self.vae_scale_factor
-        self.output_maps = list()
 
         # 1. Check inputs. Raise error if not correct
         self.check_inputs(
             prompt, height, width, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds
         )
+        # versions of the detector
         assert adv_model in ('yolov2', 'yolov7')
+
+        # Directory for saves
         if save_every != -1:
             os.makedirs('process', exist_ok=True)
 
@@ -703,7 +635,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
         # corresponds to doing no classifier free guidance.
         do_classifier_free_guidance = guidance_scale > 1.0
+        # self guidance
         do_self_guidance = (self_guidance_scale > 0.0 and len(self_guidance_dict) > 0)
+        # Adversarial guidance
         do_adv = adv_batch_size > 0
 
         # 3. Encode input prompt
@@ -711,6 +645,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             cross_attention_kwargs.get("scale", None) if cross_attention_kwargs is not None else None
         )
 
+        # Prompt encodings
         initial_prompt_embeds = prompt_embeds.clone() if prompt_embeds is not None else None
 
         prompt_embeds, negative_prompt_embeds = self.encode_prompt(
@@ -755,22 +690,23 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         if do_adv:
             adv_dataloader, _ = get_dataloader(adv_batch_size, pipeline=pipeline)  # Inria | Background
             yolo = get_model(None, device, adv_model)  # Yolo
+            # Loss calculation is different for the 2 models
             compute_loss = ComputeLoss(yolo) if adv_model == 'yolov7' else get_det_loss
             tps, patch_transformer, patch_applier, renderer = None, None, None, None
-            if pipeline == 'standard':
+            if pipeline == 'standard':  # Paste a patch on top of a 2d image
                 tps = TPSGridGen(torch.Size([512, 512])) 
                 patch_transformer = load_data.PatchTransformer().to(device)
                 patch_applier = load_data.PatchApplier().to(device)
-            elif pipeline == '3d':
+            elif pipeline == '3d':  # wrap patch onto a 3d rendering
                 renderer = get_renderer(device)
             else:
                 raise ValueError(f"Unknown pipeline {pipeline}")
+            # Change adversarial guidance step with time
             adv_scale_scheduler = get_scheduler(adv_scale_schedule_type, adv_scale_schedule_dict, adv_guidance_scale, num_inference_steps)
 
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
 
-        # List to save the initial attn maps and activations to allow for relative edits
         # List to save the initial attn maps and activations to allow for relative edits
         try:
             num_maps = len(self.initial_maps)
@@ -782,8 +718,10 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             self.initial_maps = defaultdict(list)
             self.initial_activations = defaultdict(list)
 
+        # Launch a separate run to save the attention maps and activations for self guidance
         if do_self_guidance and self_guidance_precalculate_steps > 0:
             print('Calculating attention maps and activations')
+            # Set self guidance scale to 0 for the pre-run
             self(prompt, height, width, self_guidance_precalculate_steps, guidance_scale, negative_prompt,
                  num_images_per_prompt, eta, generator, latents, initial_prompt_embeds, negative_prompt_embeds,
                  output_type, return_dict, callback, callback_steps, cross_attention_kwargs, guidance_rescale,
@@ -793,17 +731,18 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
                 # do_self_guidance = i < num_inference_steps * 13 // 16 and not save_attn_maps
+                # These guidances require gradient calculations
                 if do_self_guidance or do_adv:
                     latents = latents.detach().requires_grad_(True)
                 # expand the latents if we are doing classifier free guidance
                 latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
-                # Save attn maps to get loss later
+                # Save attention maps and activations for sef guidance
                 attn_controls = []
                 actv_controls = []
                 if do_self_guidance or save_attn_maps:
-                    register_attention_layers_recr(self.unet, attn_controls)
+                    register_attention_layers_recr(self.unet, attn_controls)  # Modify unet forward to save maps
                     register_activation_recr(self.unet, actv_controls)
 
                 # predict the noise residual
@@ -816,6 +755,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     has_self_guidance=(do_self_guidance or save_attn_maps),
                 )[0]
 
+                # Output intermediate images
                 if save_every != -1 and not do_adv and (i + 1) % save_every == 0:
                     img = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
                     img = img[0].unsqueeze(0)
@@ -825,7 +765,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 # perform guidance
                 scaled_guidance_funcs = []
 
-                # self guidance attn maps
+                # export attention maps and activations
                 if do_self_guidance or save_attn_maps:
                     attn_maps = []
                     actv_maps = []
@@ -834,14 +774,14 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                             for j in range(recorder.maps.shape[0]):
                                 attn_maps.append(recorder.maps[j, :, :])
                                 if save_attn_maps:
-                                    self.initial_maps[i].append(recorder.maps[j, :, :].detach().clone())
+                                    self.initial_maps[i].append(recorder.maps[j, :, :].detach().clone().cpu())
                     for recorder in actv_controls:
                         if recorder.recorded_maps is not None:
                             for j in range(recorder.recorded_maps.shape[0]):
                                 actv_maps.append((recorder.recorded_appearance, recorder.recorded_maps[j]))
                                 if save_attn_maps:
                                     self.initial_activations[i].append(
-                                        (recorder.recorded_appearance, recorder.recorded_maps[j].detach().clone()))
+                                        (recorder.recorded_appearance.detach().clone().cpu(), recorder.recorded_maps[j].detach().clone().cpu()))
                     if do_self_guidance:
                         sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps[i],
                                                      self.initial_activations[i]) * self_guidance_scale
