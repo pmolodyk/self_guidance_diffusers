@@ -11,7 +11,7 @@ import torch
 
 from models.yolo import Model
 from utils.general import check_requirements, set_logging
-from utils.google_utils import attempt_download
+from diffusers.adversarial.utils.google_utils import attempt_download
 from utils.torch_utils import select_device
 
 dependencies = ['torch', 'yaml']
@@ -88,7 +88,6 @@ if __name__ == '__main__':
 
     # Verify inference
     import numpy as np
-    from PIL import Image
 
     imgs = [np.zeros((640, 480, 3))]
 
