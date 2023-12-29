@@ -228,6 +228,50 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         """
         self.vae.disable_tiling()
 
+    # Util function to extract attention maps for self guidance
+    def extract_attn_from_recorders(self, attn_controls, save_attn_maps, timestep):
+        attn_maps = []
+        for recorder in attn_controls:
+            if recorder.maps is not None:
+                for j in range(recorder.maps.shape[0]):
+                    attn_maps.append(recorder.maps[j, :, :])
+                    if save_attn_maps:
+                        self.initial_maps[timestep].append(recorder.maps[j, :, :].detach().clone().cpu())
+        return attn_maps
+
+    # Util function to extract activations for self guidance
+    def extract_actv_from_recorders(self, actv_controls, save_attn_maps, timestep):
+        actv_maps = []
+        for recorder in actv_controls:
+            if recorder.recorded_maps is not None:
+                for j in range(recorder.recorded_maps.shape[0]):
+                    actv_maps.append((recorder.recorded_appearance, recorder.recorded_maps[j]))
+                    if save_attn_maps:
+                        self.initial_activations[timestep].append(
+                            (recorder.recorded_appearance.detach().clone().cpu(),
+                             recorder.recorded_maps[j].detach().clone().cpu()))
+        return actv_maps
+
+    # Util function to output decoded intermediate images
+    def output_intermediate(self, latents, path_output, output_type):
+        img = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
+        img = img[0].unsqueeze(0)
+        img = self.image_processor.postprocess(img.detach(), output_type=output_type, do_denormalize=[True])
+        img[0].save(path_output)
+
+    # Util function to compute different versions of the adversarial loss
+    def compute_adv_loss(self, adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded, device):
+        if adv_model == 'yolov7':
+            pred = yolo(adv_imgs)
+            loss, _ = compute_loss(pred[1][:3], targets_all[0].to(device))
+        elif adv_model == 'yolov2':
+            loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device))
+            if valid_num > 0:
+                loss = loss / valid_num
+        else:
+            raise ValueError('Adv model not supported!')
+        return loss
+
     def encode_prompt(
             self,
             prompt,
@@ -743,7 +787,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 actv_controls = []
                 if do_self_guidance or save_attn_maps:
                     register_attention_layers_recr(self.unet, attn_controls)  # Modify unet forward to save maps
-                    register_activation_recr(self.unet, actv_controls)
+                    register_activation_recr(self.unet, actv_controls)  # Modify unet forward to save activations
 
                 # predict the noise residual
                 noise_pred = self.unet(
@@ -757,31 +801,16 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                 # Output intermediate images
                 if save_every != -1 and not do_adv and (i + 1) % save_every == 0:
-                    img = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
-                    img = img[0].unsqueeze(0)
-                    img = self.image_processor.postprocess(img.detach(), output_type=output_type, do_denormalize=[True])
-                    img[0].save(f'process/{i}.png')
+                    self.output_intermediate(latents, f'process/{i}.png', output_type)
 
                 # perform guidance
                 scaled_guidance_funcs = []
 
-                # export attention maps and activations
+                # export attention maps and activations from recorders
                 if do_self_guidance or save_attn_maps:
-                    attn_maps = []
-                    actv_maps = []
-                    for recorder in attn_controls:
-                        if recorder.maps is not None:
-                            for j in range(recorder.maps.shape[0]):
-                                attn_maps.append(recorder.maps[j, :, :])
-                                if save_attn_maps:
-                                    self.initial_maps[i].append(recorder.maps[j, :, :].detach().clone().cpu())
-                    for recorder in actv_controls:
-                        if recorder.recorded_maps is not None:
-                            for j in range(recorder.recorded_maps.shape[0]):
-                                actv_maps.append((recorder.recorded_appearance, recorder.recorded_maps[j]))
-                                if save_attn_maps:
-                                    self.initial_activations[i].append(
-                                        (recorder.recorded_appearance.detach().clone().cpu(), recorder.recorded_maps[j].detach().clone().cpu()))
+                    attn_maps = self.extract_attn_from_recorders(attn_controls, save_attn_maps, i)
+                    actv_maps = self.extract_actv_from_recorders(actv_controls, save_attn_maps, i)
+
                     if do_self_guidance:
                         sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps[i],
                                                      self.initial_activations[i]) * self_guidance_scale
@@ -802,15 +831,10 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                         img[0].save(f'process/{i}.png')
                     adv_imgs, targets_padded = get_adv_imgs(adv_patch, pipeline, targets_all, tps, patch_transformer,
                                                             patch_applier, imgs, renderer, batch_idx, adv_dataloader)
-                    if adv_model == 'yolov7':
-                        pred = yolo(adv_imgs)
-                        loss, _ = compute_loss(pred[1][:3], targets_all[0].to(device))
-                    elif adv_model == 'yolov2':
-                        loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device))
-                        if valid_num > 0:
-                            loss = loss / valid_num
 
-                    grads = torch.autograd.grad(adv_guidance_scale * loss, latents)
+                    adv_loss = self.compute_adv_loss(adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded)
+
+                    grads = torch.autograd.grad(adv_guidance_scale * adv_loss, latents)
                     scaled_guidance_funcs.append(grads[0])
 
                 if do_classifier_free_guidance:
