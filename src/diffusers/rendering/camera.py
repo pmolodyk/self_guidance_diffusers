@@ -56,7 +56,7 @@ class CameraSampler(object):
         else:
             # Simple copy
             if isinstance(theta, (float, int)):
-                self.azim = torch.full(size, theta)
+                self.azim = torch.full((size,), theta)
             elif isinstance(theta, torch.Tensor):
                 self.azim = theta.clone()
             elif isinstance(theta, np.ndarray):

@@ -109,7 +109,7 @@ def get_adv_imgs(adv_patch, pipeline, targets_all, tps=None, patch_transformer=N
             tex_kwargs=dict(tex_map=adv_patch),
             render_kwargs=dict(use_tps2d=True, use_tps3d=True),
         )
-        targets_padded = targets2padded(targets)  # maybe wrong
+        targets_padded = targets2padded(targets)
     elif pipeline == 'standard':
         targets, targets_padded = targets_all
         adv_patch_tps, _ = tps.tps_trans(adv_patch, max_range=0.1, canvas=0.5, target_shape=adv_patch.shape[-2:])

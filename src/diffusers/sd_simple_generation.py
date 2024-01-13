@@ -113,11 +113,11 @@ elif pargs.type == 'adv':
         name += f'_fx_{self_guidance_scale}'
     out = pipe(height=height, width=width, prompt=prompt, self_guidance_dict=self_guidance_dict, latents=latents,
             num_inference_steps=num_inference_steps, self_guidance_scale=self_guidance_scale, 
-            adv_guidance_scale=adv_guidance_scale, adv_batch_size=24, adv_model='yolov2',
+            adv_guidance_scale=adv_guidance_scale, adv_batch_size=20, adv_model='yolov2',
             guidance_scale=guidance_scale, save_every=save_every, adv_scale_schedule_dict=adv_scale_schedule_dict,
             adv_scale_schedule_type=pargs.scale_type, self_guidance_precalculate_steps=num_inference_steps,
             pipeline=pargs.pipeline)
-
+    name += f'_{pargs.pipeline}'
 else:    
     raise ValueError(f"incorrect type {pargs.type}")
 
