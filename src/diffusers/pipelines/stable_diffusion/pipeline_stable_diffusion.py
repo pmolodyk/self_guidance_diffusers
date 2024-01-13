@@ -260,7 +260,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         img[0].save(path_output)
 
     # Util function to compute different versions of the adversarial loss
-    def compute_adv_loss(self, adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded, device):
+    def compute_adv_loss(self, adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded):
+        device = adv_imgs.device
         if adv_model == 'yolov7':
             pred = yolo(adv_imgs)
             loss, _ = compute_loss(pred[1][:3], targets_all[0].to(device))
