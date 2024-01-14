@@ -2210,6 +2210,7 @@ class CrossAttnUpBlock2D(nn.Module):
         upsample_size: Optional[int] = None,
         attention_mask: Optional[torch.FloatTensor] = None,
         encoder_attention_mask: Optional[torch.FloatTensor] = None,
+        record_appearance: bool = False,
     ):
         lora_scale = cross_attention_kwargs.get("scale", 1.0) if cross_attention_kwargs is not None else 1.0
         is_freeu_enabled = (
@@ -2219,7 +2220,8 @@ class CrossAttnUpBlock2D(nn.Module):
             and getattr(self, "b2", None)
         )
 
-        for resnet, attn in zip(self.resnets, self.attentions):
+        res_att = list(zip(self.resnets, self.attentions))
+        for i, (resnet, attn) in enumerate(res_att):
             # pop res hidden states
             res_hidden_states = res_hidden_states_tuple[-1]
             res_hidden_states_tuple = res_hidden_states_tuple[:-1]
@@ -2266,6 +2268,8 @@ class CrossAttnUpBlock2D(nn.Module):
                 )[0]
             else:
                 hidden_states = resnet(hidden_states, temb, scale=lora_scale)
+                if record_appearance and i == len(res_att) - 1:
+                    resnet.feature_map_recorder.recorded_appearance = hidden_states[1, :, :, :].permute(1, 2, 0)
                 hidden_states = attn(
                     hidden_states,
                     encoder_hidden_states=encoder_hidden_states,
@@ -2274,6 +2278,8 @@ class CrossAttnUpBlock2D(nn.Module):
                     encoder_attention_mask=encoder_attention_mask,
                     return_dict=False,
                 )[0]
+                if record_appearance and i == len(res_att) - 1:
+                    resnet.feature_map_recorder.recorded_maps = attn.transformer_blocks[-1].attn2.processor.attn_recorder.maps
 
         if self.upsamplers is not None:
             for upsampler in self.upsamplers:

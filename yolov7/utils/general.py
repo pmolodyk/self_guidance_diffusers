@@ -16,9 +16,8 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision
-import yaml
 
-from yolov7.utils.google_utils import gsutil_getsize
+from src.diffusers.adversarial.utils.google_utils import gsutil_getsize
 from yolov7.utils.metrics import fitness
 from yolov7.utils.torch_utils import init_torch_seeds
 

@@ -11,7 +11,7 @@ from tqdm import tqdm
 from yolov7.data import load_data
 from yolov7.models.yolo import Model
 from yolov7.utils.general import init_seeds, check_dataset, check_file
-from yolov7.utils.google_utils import attempt_download
+from diffusers.adversarial.utils.google_utils import attempt_download
 from yolov7.utils.loss import ComputeLoss
 from yolov7.utils.torch_utils import select_device, intersect_dicts
 
@@ -87,7 +87,7 @@ def train(opt, hyp, device):
         # Forward
         with amp.autocast(enabled=cuda):
             pred = model(imgs)  # [(bs, c, _ * 4, _ * 4, nc + 5), (bs, _ * 2, _ * 2, nc + 5), (bs, _, _, nc + 5)]
-            loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
+            loss, _ = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
 
         # Backward
         loss.backward()

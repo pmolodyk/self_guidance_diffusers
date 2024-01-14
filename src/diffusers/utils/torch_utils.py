@@ -146,3 +146,22 @@ def apply_freeu(
         res_hidden_states = fourier_filter(res_hidden_states, threshold=1, scale=freeu_kwargs["s2"])
 
     return hidden_states, res_hidden_states
+
+def gen_uniform_grid(
+    pmin: list[float], pmax: list[float], pnum: list[int], flatten=False, **kwargs
+):
+    """Input min, max, num of each axis, return grid points from A x B x C."""
+    axes = [torch.linspace(m, M, n, **kwargs) for m, M, n in zip(pmin, pmax, pnum)]
+    if flatten:
+        return torch.cartesian_prod(*axes)
+    else:
+        return torch.stack(torch.meshgrid(*axes, indexing="ij"), dim=-1)
+
+
+def gen_uniform_grid_arange(pnum: list[int], flatten=False, **kwargs):
+    """Input min, max, num of each axis, return grid points from A x B x C."""
+    axes = [torch.arange(_, **kwargs) for _ in pnum]
+    if flatten:
+        return torch.cartesian_prod(*axes)
+    else:
+        return torch.stack(torch.meshgrid(*axes, indexing="ij"), dim=-1)
