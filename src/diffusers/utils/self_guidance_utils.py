@@ -73,7 +73,7 @@ class ActivationMapsRecorder:
         self.recorded_appearance = None
 
 
-def self_guidance_loss(attn_maps: list, actv_maps: list, self_guidance_dict: dict, initial_maps: list, initial_activations: list):
+def self_guidance_loss(attn_maps: list, actv_maps: list, self_attn: list, self_guidance_dict: dict, initial_maps: list, initial_activations: list, initial_self: list):
     device = attn_maps[0].device
     loss = torch.zeros(1, device=device)
     for j, attn_map in enumerate(attn_maps):
@@ -145,4 +145,15 @@ def self_guidance_loss(attn_maps: list, actv_maps: list, self_guidance_dict: dic
                                                                                         index].sum()
                 # print(actual_appearance.shape, desired_appearance.shape)
                 loss += torch.nn.L1Loss()(actual_appearance, desired_appearance.to(device)) * appearance_weight
+    # Fix self attention in editing
+    if "fix_self_attention" in self_guidance_dict:
+        self_attn_weight = self_guidance_dict["fix_self_attention"]["weight"] if "weight" in self_guidance_dict[
+            "fix_self_attention"] else 1.0
+        for k, actual_self_attn in enumerate(self_attn):
+            device = actual_self_attn.device
+            actual_attn_map = actual_self_attn
+            desired_attn_map = initial_self[k]
+
+            loss += torch.nn.L1Loss()(actual_attn_map, desired_attn_map.to(device)) * self_attn_weight
+
     return loss

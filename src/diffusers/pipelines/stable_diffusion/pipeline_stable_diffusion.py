@@ -229,15 +229,20 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         self.vae.disable_tiling()
 
     # Util function to extract attention maps for self guidance
-    def extract_attn_from_recorders(self, attn_controls, save_attn_maps, timestep):
+    def extract_attn_from_recorders(self, attn_controls, save_attn_maps, timestep, self_attn_enabled=False):
+        self_attn_maps = []
         attn_maps = []
         for recorder in attn_controls:
+            if self_attn_enabled:
+                self_attn_maps.append(recorder.self_maps)
             if recorder.maps is not None:
                 for j in range(recorder.maps.shape[0]):
                     attn_maps.append(recorder.maps[j, :, :])
                     if save_attn_maps:
                         self.initial_maps[timestep].append(recorder.maps[j, :, :].detach().clone().cpu())
-        return attn_maps
+                        if self_attn_enabled:
+                            self.initial_self[timestep].append(recorder.self_maps.detach().clone().cpu())
+        return attn_maps, self_attn_maps
 
     # Util function to extract activations for self guidance
     def extract_actv_from_recorders(self, actv_controls, save_attn_maps, timestep):
@@ -756,12 +761,16 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         try:
             num_maps = len(self.initial_maps)
             num_acts = len(self.initial_activations)
+            num_self = len(self.initial_self)
             if save_attn_maps:
                 self.initial_maps = defaultdict(list)
                 self.initial_activations = defaultdict(list)
+                self.initial_self = defaultdict(list)
+
         except:  # This is a very bad way of checking if they already exist
             self.initial_maps = defaultdict(list)
             self.initial_activations = defaultdict(list)
+            self.initial_self = defaultdict(list)
 
         # Launch a separate run to save the attention maps and activations for self guidance
         if do_self_guidance and self_guidance_precalculate_steps > 0:
@@ -809,12 +818,12 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                 # export attention maps and activations from recorders
                 if do_self_guidance or save_attn_maps:
-                    attn_maps = self.extract_attn_from_recorders(attn_controls, save_attn_maps, i)
+                    attn_maps, self_attn = self.extract_attn_from_recorders(attn_controls, save_attn_maps, i)
                     actv_maps = self.extract_actv_from_recorders(actv_controls, save_attn_maps, i)
 
                     if do_self_guidance:
-                        sg_loss = self_guidance_loss(attn_maps, actv_maps, self_guidance_dict, self.initial_maps[i],
-                                                     self.initial_activations[i]) * self_guidance_scale
+                        sg_loss = self_guidance_loss(attn_maps, actv_maps, self_attn, self_guidance_dict, self.initial_maps[i],
+                                                     self.initial_activations[i], self.initial_self[i]) * self_guidance_scale
                         scaled_guidance_funcs.append(torch.autograd.grad(sg_loss, latents)[0])
                 
                 # Adversarial guidance
