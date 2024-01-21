@@ -8,6 +8,8 @@ import argparse
 import matplotlib
 import glob
 from PIL import Image
+from os import path
+from torchvision.datasets import ImageFolder
 
 from tqdm import tqdm
 from scipy.interpolate import interp1d
@@ -22,6 +24,9 @@ from yolo2 import utils
 from yolov7.utils.torch_utils import TPSGridGen
 from yolov7.load_adv import get_model
 
+from src.diffusers.adversarial.load_target_model import get_renderer
+from src.diffusers.adversarial.utils.yolo_dataset_utils import targets2padded
+
 
 parser = argparse.ArgumentParser(description='PyTorch Training')
 parser.add_argument('--net', default='yolov2', help='target net name')
@@ -30,6 +35,8 @@ parser.add_argument('--device', default='cuda:0', help='')
 parser.add_argument('--suffix', default='tbd', help='suffix name')
 parser.add_argument('--prepare-data', default=False, action='store_true', help='')
 parser.add_argument('--load-path', default=None, help='load patch')
+parser.add_argument('--mask', type=str, default=None, help='ex: adv_500*')
+parser.add_argument('--pipeline', type=str, default="3d", help='3d|standard')
 pargs = parser.parse_args()
 
 
@@ -96,10 +103,31 @@ if pargs.prepare_data:
                     img.save(save_dir)
     print('preparing done')
 
-img_dir_test = os.getcwd() + '/yolov7/data/test_padded'
-lab_dir_test = os.getcwd() + '/yolov7/data/test_lab_%s' % pargs.net
-test_data = load_data.InriaDataset(img_dir_test, lab_dir_test, int(data_dict['max_lab']), int(data_dict['img_size']), shuffle=False)
-test_loader = torch.utils.data.DataLoader(test_data, batch_size=pargs.batch_size, shuffle=False, num_workers=10)
+if pargs.pipeline != '3d':
+    img_dir_test = os.getcwd() + '/yolov7/data/test_padded'
+    lab_dir_test = os.getcwd() + '/yolov7/data/test_lab_%s' % pargs.net
+    test_data = load_data.InriaDataset(img_dir_test, lab_dir_test, int(data_dict['max_lab']), int(data_dict['img_size']), shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=pargs.batch_size, shuffle=False, num_workers=10)
+else:
+    img_size = 416  # standard for Inria
+    transform = transforms.Compose(
+        [
+            transforms.Resize(img_size),
+            transforms.CenterCrop((img_size, img_size)),
+            transforms.ToTensor(),
+        ]
+    )
+    test_data = ImageFolder(
+        path.join("data", "background_test"), transform=transform
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test_data,
+        pargs.batch_size,
+        shuffle=False,
+        num_workers=10,
+        pin_memory=True,
+    )
+    data_dict = None
 loader = test_loader
 epoch_length = len(loader)
 print(f'One epoch is {len(loader)}')
@@ -123,53 +151,98 @@ def label_filter(truths, labels=None):
 
 
 def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thresh=0.5, num_of_samples=100,
-         old_fasion=True):
+         old_fasion=True, pipeline='3d', num_samples=18):
     model.eval()
     total = 0.0
     batch_num = len(loader)
-
+    rend = pipeline == '3d'
+    theta_list = [None]
+    noise = torch.rand(1, 3, 256, 256).to(device)
+    if rend:  # render images
+        renderer = get_renderer(device)
+        theta_list = np.linspace(-180, 180, num_samples, endpoint=False)
+        renderer.lights = renderer.light_sampler.sample(0)
     with torch.no_grad():
         positives = []
-        for batch_idx, (data, target) in tqdm(enumerate(loader), total=batch_num, position=0):
+        for batch_idx, (data, target) in tqdm(enumerate(loader), total=len(loader)):
             data = data.to(device)
-
             if adv_patch is not None:
                 target = target.to(device)
-                adv_batch_t = patch_transformer(adv_patch, target, int(data_dict['img_size']), do_rotate=True, rand_loc=False,
-                                                pooling='median', old_fasion=old_fasion)
-                data = patch_applier(data, adv_batch_t)
-            if batch_idx == 0:
-                print(data[0].mean())
-                patched_sample = transforms.ToPILImage()(np.uint8((data[0] * 255).permute(1, 2, 0).detach().cpu().numpy()))
-                patched_sample.save('tbd.png')
-            output = model(data)
-            all_boxes = utils.get_region_boxes_general(output, model, conf_thresh, pargs.net)
-            for i in range(len(all_boxes)):
-                boxes = all_boxes[i]
-                boxes = utils.nms(boxes, nms_thresh)
-                truths = target[i].view(-1, 5)
-                truths = label_filter(truths, labels=[0])
-                num_gts = truths_length(truths)
-                truths = truths[:num_gts, 1:]
-                truths = truths.tolist()
-                total = total + num_gts
-                for j in range(len(boxes)):
-                    if boxes[j][6].item() == 0:
-                        best_iou = 0
-                        best_index = 0
+                if not rend:
+                    adv_batch_t = patch_transformer(adv_patch, target, int(data_dict['img_size']), do_rotate=True, rand_loc=False,
+                                                    pooling='median', old_fasion=old_fasion)
+                    data = patch_applier(data, adv_batch_t)
+            for angle_idx, theta in enumerate(theta_list):
+                if rend:
+                    renderer.cameras = renderer.camera_sampler.sample(len(data), theta=theta)
+                    if adv_patch is not None:
+                        tex_kwargs = dict(tex_map=adv_patch.unsqueeze(0))  # ?
+                    else:
+                        tex_kwargs = dict(tex_map=noise)
+                    render_kwargs = dict(use_tps2d=True, use_tps3d=True)
+                    data_render, target = renderer.forward(
+                        data,
+                        resample=False,
+                        is_test=True,
+                        share_texture=True,
+                        tex_kwargs=tex_kwargs,
+                        render_kwargs=render_kwargs,
+                        )
+                    target = targets2padded(target)
+                else:
+                    data_render = data
+                output = model(data_render)
+                all_boxes = utils.get_region_boxes_general(output, model, conf_thresh, pargs.net)
+                for i in range(len(all_boxes)):
+                    boxes = all_boxes[i]
+                    boxes = utils.nms(boxes, nms_thresh)
 
-                        for ib, box_gt in enumerate(truths):
-                            iou = utils.bbox_iou(box_gt, boxes[j], x1y1x2y2=False)
-                            if iou > best_iou:
-                                best_iou = iou
-                                best_index = ib
-                        if best_iou > iou_thresh:
-                            del truths[best_index]
-                            positives.append((boxes[j][4].item(), True))
-                        else:
-                            positives.append((boxes[j][4].item(), False))
+                    #
+                    # from random import random
+                    # if random() < 0.05:
+                    #     from torchvision.transforms import ToPILImage
+                    #     from PIL import ImageDraw
+                    #     img = ToPILImage()(data_render[i].clone())
+                    #     width = img.width
+                    #     height = img.height
+                    #     draw = ImageDraw.Draw(img)
+                    #     for ii in range(len(boxes)):
+                    #         box = boxes[ii]
+                    #         x1 = (box[0] - box[2] / 2.0) * width
+                    #         y1 = (box[1] - box[3] / 2.0) * height
+                    #         x2 = (box[0] + box[2] / 2.0) * width
+                    #         y2 = (box[1] + box[3] / 2.0) * height
+
+                    #         rgb = (255, 0, 0)
+                    #         cls_id = int(boxes[ii][6])
+                    #         if cls_id == 0:
+                    #             draw.rectangle([x1, y1, x2, y2], outline=rgb)
+                    #     img.save('tbd.png')
+                    #
+
+                    truths = target[i].view(-1, 5)
+                    truths = label_filter(truths, labels=[0])
+                    num_gts = truths_length(truths)
+                    truths = truths[:num_gts, 1:]
+                    truths = truths.tolist()
+                    total = total + num_gts
+                    for j in range(len(boxes)):
+                        if boxes[j][6].item() == 0:
+                            best_iou = 0
+                            best_index = 0
+
+                            for ib, box_gt in enumerate(truths):
+                                iou = utils.bbox_iou(box_gt, boxes[j], x1y1x2y2=False)
+                                if iou > best_iou:
+                                    best_iou = iou
+                                    best_index = ib
+                            if best_iou > iou_thresh:
+                                del truths[best_index]
+                                positives.append((boxes[j][4].item(), True))
+                            else:
+                                positives.append((boxes[j][4].item(), False))
+
         positives = sorted(positives, key=lambda d: d[0], reverse=True)
-
         tps = []
         fps = []
         confs = []
@@ -212,13 +285,16 @@ save_path = os.path.join(save_dir, pargs.suffix)
 plt.figure(figsize=[10, 10])
 if pargs.load_path is not None:
     if os.path.isdir(pargs.load_path):
-        img_paths = glob.glob(f'{pargs.load_path}/*.png') + glob.glob(f'{pargs.load_path}/*.npy')
-        img_paths = sorted(img_paths, key=lambda x: int(x.split('_')[-1][:-4]))
+        if pargs.mask is None:
+            img_paths = glob.glob(f'{pargs.load_path}/*.png') + glob.glob(f'{pargs.load_path}/*.npy')
+        else:
+            img_paths = glob.glob(f'{pargs.load_path}/{pargs.mask}')
         print(img_paths)
     else:
         img_paths = [pargs.load_path]
     cmap = plt.cm.coolwarm(np.linspace(0, 1, len(img_paths)))
-    for i, img_path in enumerate(img_paths):
+    res = []
+    for i, img_path in tqdm(enumerate(img_paths), total=len(img_paths)):
         try:
             patch = torch.from_numpy(np.load(img_path)[:1]).to(device)
         except ValueError:
@@ -226,14 +302,19 @@ if pargs.load_path is not None:
             patch = transforms.ToTensor()(patch).to(device)
 
         test_patch = patch.detach().clone()
-        prec, rec, ap, confs = test(darknet_model, test_loader, adv_patch=test_patch, conf_thresh=0.01, old_fasion=True)
-
+        prec, rec, ap, confs = test(darknet_model, test_loader, adv_patch=test_patch, conf_thresh=0.01, old_fasion=True,
+                                    pipeline=pargs.pipeline)
+        res.append((img_path, prec, rec, ap))
         np.savez(save_path, prec=prec, rec=rec, ap=ap, confs=confs, adv_patch=test_patch.detach().cpu().numpy())
-        print('AP is %.4f'% ap)
+    
+    res = sorted(res, key=lambda x: -x[-1])
+    for i in range(len(res)):
+        img_path, prec, rec, ap = res[i]
+        print('AP is %.4f'% ap, f'for {img_path[:-4]}')
         plt.plot(rec, prec, color=cmap[i], label=img_path.split('.')[0].split('/')[-1] + ': ap %.3f' % ap)
-        # unloader(patch[0]).save(save_path + '.png')
+
 else:
-    prec, rec, ap, confs = test(darknet_model, test_loader, conf_thresh=0.01, old_fasion=True)
+    prec, rec, ap, confs = test(darknet_model, test_loader, conf_thresh=0.01, old_fasion=True, pipeline=pargs.pipeline)
     print('AP is %.4f'% ap)
     plt.plot(rec, prec)
     leg = [pargs.suffix + ': ap %.3f' % ap]

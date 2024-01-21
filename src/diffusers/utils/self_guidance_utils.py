@@ -38,9 +38,9 @@ def threshold_map(attn_map, s=10.0):
 
 
 # Defining the g functions for different edits
-def centroid_fn(relevant_att_map: torch.Tensor):  # shape: w, h, c
-    w = torch.arange(relevant_att_map.shape[0]).to("cuda")
-    h = torch.arange(relevant_att_map.shape[1]).to("cuda")
+def centroid_fn(relevant_att_map: torch.Tensor, device):  # shape: w, h, c
+    w = torch.arange(relevant_att_map.shape[0]).to(device)
+    h = torch.arange(relevant_att_map.shape[1]).to(device)
     map_mult_w = relevant_att_map * w
     map_mult_h = relevant_att_map * h
     return torch.cat([map_mult_w.flatten().sum(dim=0, keepdim=True), map_mult_h.flatten().sum(dim=0, keepdim=True)], 0) / relevant_att_map.sum()
@@ -69,15 +69,18 @@ class MapsRecorder:
 
 class ActivationMapsRecorder:
     def __init__(self):
-        self.activation_maps = []
+        self.recorded_maps = None
+        self.recorded_appearance = None
 
-def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: list):
-    loss = torch.zeros(1, device=attn_maps[0].device)
+
+def self_guidance_loss(attn_maps: list, actv_maps: list, self_attn: list, self_guidance_dict: dict, initial_maps: list, initial_activations: list, initial_self: list):
+    device = attn_maps[0].device
+    loss = torch.zeros(1, device=device)
     for j, attn_map in enumerate(attn_maps):
         # resize map to h X w X tokens
         hw = int(np.sqrt(attn_map.shape[0]))
-        rel_map = attn_map.reshape(hw, hw, attn_map.shape[-1])
-        initial_map = initial_maps[j].reshape(hw, hw, attn_map.shape[-1])
+        rel_map = attn_map.reshape(hw, hw, attn_map.shape[-1]).to(device) # todo cuda cleanup
+        initial_map = initial_maps[j].reshape(hw, hw, attn_map.shape[-1]).to(device) # todo cuda cleanup
 
         # Size losses
         if "size" in self_guidance_dict:
@@ -92,6 +95,8 @@ def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: 
                     target_value = size_values[i]
                 else:
                     target_value = size_fn(threshold_map(initial_map[:, :, index])) * size_values[i]
+                if j == 0 and i == 1:
+                    print(calc_size, target_value)
                 loss += torch.abs(calc_size - target_value) * size_weight
         # Position losses
         if "position" in self_guidance_dict:
@@ -102,11 +107,11 @@ def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: 
             assert len(position_indices) == len(position_values), 'OOPS, there should be an equal amount of values and indices'
 
             for i, index in enumerate(position_indices):
-                calc_position = centroid_fn(threshold_map(rel_map[:, :, index]))
+                calc_position = centroid_fn(threshold_map(rel_map[:, :, index]), device)
                 if self_guidance_dict['position']['mode'] == "absolute":
                     target_value = position_values[i]
                 else:
-                    target_value = centroid_fn(threshold_map(initial_map[:, :, index])) + position_values[i]
+                    target_value = centroid_fn(threshold_map(initial_map[:, :, index]), device) + position_values[i]
                 loss += torch.abs(calc_position - target_value).mean() * position_weight
         # Shape losses
         if "shape" in self_guidance_dict:
@@ -118,7 +123,37 @@ def self_guidance_loss(attn_maps: list, self_guidance_dict: dict, initial_maps: 
                 desired_shape = shape_fn(initial_map[:, :, index])
 
                 loss += torch.abs(actual_shape - desired_shape).mean() * shape_weight
-        # Appearance losses
-        if "appearance" in self_guidance_dict:
-            pass
+    # Appearance losses
+    if "appearance" in self_guidance_dict:
+        appearance_weight = self_guidance_dict["appearance"]["weight"] if "weight" in self_guidance_dict[
+            "appearance"] else 1.0
+        appearance_indices = self_guidance_dict['appearance']['indices']
+
+        for i, index in enumerate(appearance_indices):
+            for k, actual_activation in enumerate(actv_maps):
+                device = actual_activation[1].device
+                token_len = actual_activation[1].shape[-1]
+                hw = int(np.sqrt(actual_activation[1].shape[0]))
+                actual_attn_map = actual_activation[1][:, :].reshape(hw, hw, token_len)
+                desired_attn_map = initial_activations[k][1][:, :].reshape(hw, hw, token_len)
+
+                actual_appearance = (actual_activation[0].mean(dim=2) * actual_attn_map[:, :, index]) / actual_attn_map[
+                                                                                                        :, :,
+                                                                                                        index].sum()
+                desired_appearance = (initial_activations[k][0].mean(dim=2) * desired_attn_map[:, :,
+                                                                              index]) / desired_attn_map[:, :,
+                                                                                        index].sum()
+                # print(actual_appearance.shape, desired_appearance.shape)
+                loss += torch.nn.L1Loss()(actual_appearance, desired_appearance.to(device)) * appearance_weight
+    # Fix self attention in editing
+    if "fix_self_attention" in self_guidance_dict:
+        self_attn_weight = self_guidance_dict["fix_self_attention"]["weight"] if "weight" in self_guidance_dict[
+            "fix_self_attention"] else 1.0
+        for k, actual_self_attn in enumerate(self_attn):
+            device = actual_self_attn.device
+            actual_attn_map = actual_self_attn
+            desired_attn_map = initial_self[k]
+
+            loss += torch.nn.L1Loss()(actual_attn_map, desired_attn_map.to(device)) * self_attn_weight
+
     return loss
