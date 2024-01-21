@@ -5,6 +5,7 @@ from torch import Tensor, nn
 import torch.nn.functional as F
 from torch.nn import Module
 from typing import Optional
+from random import randint
 
 from src.diffusers.models.tv_loss import total_variation
 from src.diffusers.utils.typing_utils import _pair, _size_2_t
@@ -56,9 +57,11 @@ class SimpleTexture(ITexture):
         if self.do_interpolate:
             if self.tile:
                 base_tile = F.interpolate(tex_map, self.tile_size)
-                mults = [ceil(self.fig_size[-2 + i] / self.tile_size) for i in range(2)]
+                mults = [ceil(self.fig_size[-2 + i] / self.tile_size) + 1 for i in range(2)]
                 patch_tiled = torch.tile(base_tile, mults)
-                tex = patch_tiled[:, :, :self.fig_size[-2], :self.fig_size[-1]]
+                init_x, init_y = randint(0, self.tile_size - 1), randint(0, self.tile_size - 1)
+                tex = patch_tiled[:, :, init_x:init_x + self.fig_size[-2], 
+                                        init_y:init_y + self.fig_size[-1]]
             else:
                 tex = F.interpolate(tex_map, self.fig_size)
         else:
