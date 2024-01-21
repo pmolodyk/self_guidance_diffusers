@@ -118,8 +118,9 @@ elif pargs.type == 'adv':
             adv_scale_schedule_type=pargs.scale_type, self_guidance_precalculate_steps=num_inference_steps,
             pipeline=pargs.pipeline)
     name += f'_{pargs.pipeline}'
-else:    
+else:
     raise ValueError(f"incorrect type {pargs.type}")
 
 out.images[0].show(title=name)
-out.images[0].save(f'patches/{name}_{prompt.replace(" ", "_")}.png')
+os.makedirs(f'patches/{"_".join(prompt.split())}', exist_ok=True)
+out.images[0].save(f'patches/{"_".join(prompt.split())}/{name}_{prompt.replace(" ", "_")}.png')

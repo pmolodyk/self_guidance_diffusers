@@ -33,7 +33,7 @@ from packaging import version
 from requests.exceptions import HTTPError
 from tqdm.auto import tqdm
 
-import diffusers
+import src.diffusers as diffusers
 
 from .. import __version__
 from ..configuration_utils import ConfigMixin
