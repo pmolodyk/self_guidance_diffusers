@@ -13,19 +13,19 @@ from src.diffusers.adversarial.load_target_model import get_renderer, get_datalo
 
 if __name__ == '__main__':
     adv_batch_size = 24
-    device = 'cuda:9'
+    device = 'cuda:7'
     adv_model = 'yolov2'
     img_size = 416
     pipeline = '3d'
     
     trainloader, _ = get_dataloader(adv_batch_size, pipeline=pipeline)
     yolo = get_model(None, device, adv_model)  # Yolo
-    renderer = get_renderer(device)
+    renderer = get_renderer(device, True)
 
     data, _ = next(iter(trainloader))
     # for batch_idx, (data, _) in enumerate(trainloader):
     data = data.to(device, non_blocking=True)
-    img_paths = ['patches/basic_75_young_woman.png', 'patches/basic_75_grey_lady.png']
+    img_paths = ['src/diffusers/basic.png']#, 'patches/basic_75_grey_lady.png']
     imgs = [PILToTensor()(Image.open(i)).unsqueeze(0) / 256 for i in img_paths]
     adv_patch = imgs[0].to(device)
     adv_imgs, targets_padded = get_adv_imgs(adv_patch, pipeline, None, None, None,

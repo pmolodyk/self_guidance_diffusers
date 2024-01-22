@@ -748,7 +748,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 patch_transformer = load_data.PatchTransformer().to(device)
                 patch_applier = load_data.PatchApplier().to(device)
             elif pipeline == '3d':  # wrap patch onto a 3d rendering
-                renderer = get_renderer(device)
+                renderer = get_renderer(device, True)
             else:
                 raise ValueError(f"Unknown pipeline {pipeline}")
             # Change adversarial guidance step with time

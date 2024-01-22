@@ -28,7 +28,7 @@ class SimpleTexture(ITexture):
         color_transform: Module = nn.Identity(),
         tile: bool = False,
         tile_size: int = 128,
-        device: str = "cuda",
+        eval: bool = False,
     ) -> None:
         super().__init__()
         self.fig_size = _pair(fig_size)
@@ -46,6 +46,7 @@ class SimpleTexture(ITexture):
         self._WARNED_PATCH_NAN_OR_INF = False
         self.tile = tile
         self.tile_size = tile_size
+        self.eval = eval
 
     def forward(
         self,
@@ -59,7 +60,10 @@ class SimpleTexture(ITexture):
                 base_tile = F.interpolate(tex_map, self.tile_size)
                 mults = [ceil(self.fig_size[-2 + i] / self.tile_size) + 1 for i in range(2)]
                 patch_tiled = torch.tile(base_tile, mults)
-                init_x, init_y = randint(0, self.tile_size - 1), randint(0, self.tile_size - 1)
+                if self.eval:
+                    init_x, init_y = 0, 0
+                else:
+                    init_x, init_y = randint(0, self.tile_size - 1), randint(0, self.tile_size - 1)
                 tex = patch_tiled[:, :, init_x:init_x + self.fig_size[-2], 
                                         init_y:init_y + self.fig_size[-1]]
             else:
