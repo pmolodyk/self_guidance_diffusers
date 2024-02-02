@@ -687,6 +687,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         do_classifier_free_guidance = guidance_scale > 1.0
         # self guidance
         do_self_guidance = (self_guidance_scale > 0.0 and len(self_guidance_dict) > 0)
+        need_self_attn = "fix_self_attention" in self_guidance_dict
         # Adversarial guidance
         do_adv = adv_batch_size > 0
 
@@ -818,7 +819,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                 # export attention maps and activations from recorders
                 if do_self_guidance or save_attn_maps:
-                    attn_maps, self_attn = self.extract_attn_from_recorders(attn_controls, save_attn_maps, i)
+                    attn_maps, self_attn = self.extract_attn_from_recorders(attn_controls, save_attn_maps, i, need_self_attn)
                     actv_maps = self.extract_actv_from_recorders(actv_controls, save_attn_maps, i)
 
                     if do_self_guidance:
