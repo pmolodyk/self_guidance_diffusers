@@ -26,6 +26,7 @@ from yolov7.load_adv import get_model
 
 from src.diffusers.adversarial.load_target_model import get_renderer
 from src.diffusers.adversarial.utils.yolo_dataset_utils import targets2padded
+from src.diffusers.adversarial.utils.ap_calc_utils import test
 
 
 parser = argparse.ArgumentParser(description='PyTorch Training')
@@ -133,149 +134,7 @@ epoch_length = len(loader)
 print(f'One epoch is {len(loader)}')
 
 
-def truths_length(truths):
-    for i in range(50):
-        if truths[i][1] == -1:
-            return i
 
-
-def label_filter(truths, labels=None):
-    if labels is not None:
-        new_truths = truths.new(truths.shape).fill_(-1)
-        c = 0
-        for t in truths:
-            if t[0].item() in labels:
-                new_truths[c] = t
-                c = c + 1
-        return new_truths
-
-
-def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thresh=0.5, num_of_samples=100,
-         old_fasion=True, pipeline='3d', num_samples=18):
-    model.eval()
-    total = 0.0
-    batch_num = len(loader)
-    rend = pipeline == '3d'
-    theta_list = [None]
-    noise = torch.rand(1, 3, 256, 256).to(device)
-    if rend:  # render images
-        renderer = get_renderer(device, False)
-        theta_list = np.linspace(-180, 180, num_samples, endpoint=False)
-        renderer.lights = renderer.light_sampler.sample(0)
-    with torch.no_grad():
-        positives = []
-        for batch_idx, (data, target) in tqdm(enumerate(loader), total=len(loader)):
-            data = data.to(device)
-            if adv_patch is not None:
-                target = target.to(device)
-                if not rend:
-                    adv_batch_t = patch_transformer(adv_patch, target, int(data_dict['img_size']), do_rotate=True, rand_loc=False,
-                                                    pooling='median', old_fasion=old_fasion)
-                    data = patch_applier(data, adv_batch_t)
-            for angle_idx, theta in enumerate(theta_list):
-                if rend:
-                    renderer.cameras = renderer.camera_sampler.sample(len(data), theta=theta)
-                    if adv_patch is not None:
-                        tex_kwargs = dict(tex_map=adv_patch.unsqueeze(0))  # ?
-                    else:
-                        tex_kwargs = dict(tex_map=noise)
-                    render_kwargs = dict(use_tps2d=True, use_tps3d=True)
-                    data_render, target = renderer.forward(
-                        data,
-                        resample=False,
-                        is_test=True,
-                        share_texture=True,
-                        tex_kwargs=tex_kwargs,
-                        render_kwargs=render_kwargs,
-                        )
-                    target = targets2padded(target)
-                else:
-                    data_render = data
-                output = model(data_render)
-                all_boxes = utils.get_region_boxes_general(output, model, conf_thresh, pargs.net)
-                for i in range(len(all_boxes)):
-                    boxes = all_boxes[i]
-                    boxes = utils.nms(boxes, nms_thresh)
-
-                    #
-                    # from random import random
-                    # if random() < 0.05:
-                    #     from torchvision.transforms import ToPILImage
-                    #     from PIL import ImageDraw
-                    #     img = ToPILImage()(data_render[i].clone())
-                    #     width = img.width
-                    #     height = img.height
-                    #     draw = ImageDraw.Draw(img)
-                    #     for ii in range(len(boxes)):
-                    #         box = boxes[ii]
-                    #         x1 = (box[0] - box[2] / 2.0) * width
-                    #         y1 = (box[1] - box[3] / 2.0) * height
-                    #         x2 = (box[0] + box[2] / 2.0) * width
-                    #         y2 = (box[1] + box[3] / 2.0) * height
-
-                    #         rgb = (255, 0, 0)
-                    #         cls_id = int(boxes[ii][6])
-                    #         if cls_id == 0:
-                    #             draw.rectangle([x1, y1, x2, y2], outline=rgb)
-                    #     img.save('tbd.png')
-                    #
-
-                    truths = target[i].view(-1, 5)
-                    truths = label_filter(truths, labels=[0])
-                    num_gts = truths_length(truths)
-                    truths = truths[:num_gts, 1:]
-                    truths = truths.tolist()
-                    total = total + num_gts
-                    for j in range(len(boxes)):
-                        if boxes[j][6].item() == 0:
-                            best_iou = 0
-                            best_index = 0
-
-                            for ib, box_gt in enumerate(truths):
-                                iou = utils.bbox_iou(box_gt, boxes[j], x1y1x2y2=False)
-                                if iou > best_iou:
-                                    best_iou = iou
-                                    best_index = ib
-                            if best_iou > iou_thresh:
-                                del truths[best_index]
-                                positives.append((boxes[j][4].item(), True))
-                            else:
-                                positives.append((boxes[j][4].item(), False))
-
-        positives = sorted(positives, key=lambda d: d[0], reverse=True)
-        tps = []
-        fps = []
-        confs = []
-        tp_counter = 0
-        fp_counter = 0
-        for pos in positives:
-            if pos[1]:
-                tp_counter += 1
-            else:
-                fp_counter += 1
-            tps.append(tp_counter)
-            fps.append(fp_counter)
-            confs.append(pos[0])
-
-        precision = []
-        recall = []
-        for tp, fp in zip(tps, fps):
-            recall.append(tp / total)
-            precision.append(tp / (fp + tp))
-
-    if len(precision) > 1 and len(recall) > 1:
-        p = np.array(precision)
-        r = np.array(recall)
-        p_start = p[np.argmin(r)]
-        samples = np.arange(0., 1., 1.0 / num_of_samples)
-        interpolated = interp1d(r, p, fill_value=(p_start, 0.), bounds_error=False)(samples)
-        avg = sum(interpolated) / len(interpolated)
-    elif len(precision) > 0 and len(recall) > 0:
-        avg = precision[0] * recall[0]
-    else:
-        avg = float('nan')
-
-    return precision, recall, avg, confs
 
 save_dir = './test_results'
 if not os.path.exists(save_dir):

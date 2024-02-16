@@ -21,7 +21,9 @@ parser.add_argument('--save-every', default=-1, type=int, help='save result ever
 parser.add_argument('--scale-type', default='basic', type=str, help='guidance scale coefficient type scheduler')
 parser.add_argument('--input-image', default='', type=str, help='input image')
 parser.add_argument('--fix-appearance', default=False, action="store_true", help='use self guidance for fixing appearance')
+parser.add_argument('--fix-attention', default=False, action="store_true", help='use self guidance for fixing attention')
 parser.add_argument('--self-guidance-scale', default=1000, type=float, help='self guidance scale')
+parser.add_argument('--attention-weight', default=1, type=float, help='attention weight in self guidance loss')
 parser.add_argument('--pipeline', default='3d', type=str, help='standard|3d')
 
 pargs = parser.parse_args()
@@ -110,14 +112,20 @@ elif pargs.type == 'adv':
     name = f'adv_{num_inference_steps}_{guidance_scale}_{pargs.adv_coef.replace(" ", "_")}'
     if pargs.fix_appearance:
         self_guidance_dict['appearance'] = {'indices': list(range(1, len(prompt.split()) + 1))}
-        name += f'_fx_{self_guidance_scale}'
+        name += f'_fx'
+    if pargs.fix_appearance or pargs.fix_attention:
+        name += f'_{self_guidance_scale}'
+    if pargs.fix_attention:
+        self_guidance_dict['fix_self_attention'] = {'weight': pargs.attention_weight}
+        name += f'_fa_{pargs.attention_weight}'
+    name += f'_{pargs.pipeline}'
+    print('name', name)
     out = pipe(height=height, width=width, prompt=prompt, self_guidance_dict=self_guidance_dict, latents=latents,
             num_inference_steps=num_inference_steps, self_guidance_scale=self_guidance_scale, 
-            adv_guidance_scale=adv_guidance_scale, adv_batch_size=20, adv_model='yolov2',
+            adv_guidance_scale=adv_guidance_scale, adv_batch_size=12, adv_model='yolov2',
             guidance_scale=guidance_scale, save_every=save_every, adv_scale_schedule_dict=adv_scale_schedule_dict,
             adv_scale_schedule_type=pargs.scale_type, self_guidance_precalculate_steps=num_inference_steps,
             pipeline=pargs.pipeline)
-    name += f'_{pargs.pipeline}'
 else:
     raise ValueError(f"incorrect type {pargs.type}")
 

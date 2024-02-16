@@ -14,7 +14,8 @@ with open(f'src/diffusers/{pargs.yaml_name}.yaml') as f:
 device = data_dict['device']
 prompt = data_dict['prompt']
 gsc = data_dict['guidance_scale']
-fa = data_dict['fix_appearance']
+fap = data_dict['fix_appearance']
+fat = data_dict['fix_attention']
 
 if data_dict['check_free']:
     check_free([data_dict['server_name']], [int(device[-1])])
@@ -29,8 +30,16 @@ for i in tqdm(range(len(data_dict["adv_scale_schedule_dict"])), total=len(data_d
         adv_scale_schedule_dict_new[k] = v
     dct = str(adv_scale_schedule_dict_new)[1:-1].replace(': ', ':').replace(',', '')
     fa_text = ''
-    if fa:
-        fa_text = f"--fix-appearance --self-guidance-scale {data_dict['appearance_coef'][i]}"
+    if 'attention_weight' not in data_dict or len(data_dict['attention_weight']) == 0:
+        att_weight = 1
+    else:
+        att_weight = data_dict['attention_weight'][i]
+    if fap:
+        fa_text += f"--fix-appearance "
+    if fat:
+        fa_text += f"--fix-attention --attention-weight {att_weight} "
+    if fat or fap:
+        fa_text += f"--self-guidance-scale {data_dict['appearance_coef'][i]}"
 
     cmd = f'python -m src.diffusers.sd_simple_generation --adv-coef "{dct}" --type adv --steps {steps} --device {device} --prompt "{prompt}" --guidance-scale {gsc} {fa_text}'
     print(cmd)

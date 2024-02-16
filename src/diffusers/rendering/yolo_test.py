@@ -11,9 +11,18 @@ from torch.cuda import amp
 from src.diffusers.adversarial.load_target_model import get_dataloader, get_model
 from src.diffusers.adversarial.load_target_model import get_renderer, get_dataloader, get_adv_imgs
 
+
+def back_text(draw, x, y, msg, backc, fontc, font=None):
+    if font is None:
+        font = draw.getfont()
+    _, _, w, h = font.getbbox(msg)
+    draw.rectangle((x, y, x+w, y+h), fill=backc)
+    draw.text((x, y), msg, fill=fontc)
+    return None
+
 if __name__ == '__main__':
     adv_batch_size = 24
-    device = 'cuda:7'
+    device = 'cuda:8'
     adv_model = 'yolov2'
     img_size = 416
     pipeline = '3d'
@@ -25,7 +34,7 @@ if __name__ == '__main__':
     data, _ = next(iter(trainloader))
     # for batch_idx, (data, _) in enumerate(trainloader):
     data = data.to(device, non_blocking=True)
-    img_paths = ['src/diffusers/basic.png']#, 'patches/basic_75_grey_lady.png']
+    img_paths = ['raw/none/whiteds/0.jpg'] #, 'patches/basic_75_grey_lady.png']
     imgs = [PILToTensor()(Image.open(i)).unsqueeze(0) / 256 for i in img_paths]
     adv_patch = imgs[0].to(device)
     adv_imgs, targets_padded = get_adv_imgs(adv_patch, pipeline, None, None, None,
@@ -39,7 +48,7 @@ if __name__ == '__main__':
     boxes = torch.nn.functional.pad(boxes, (0, 2)).roll(6, 1)
 
     import math
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw
     def get_color(c, x, max_val):
         ratio = float(x) / max_val * 5
         i = int(math.floor(ratio))
@@ -65,5 +74,6 @@ if __name__ == '__main__':
         cls_id = int(boxes[i][6])
         if cls_id == 0:
             draw.rectangle([x1, y1, x2, y2], outline=rgb)
+            back_text(draw, x1, y1, "%.3f" % (box[4]), backc=rgb, fontc=fontc)
             # draw.rectangle([boxw[0], boxw[1], boxw[2], boxw[3]], outline=(0, 255, 0))
     img.save('tbd.png')

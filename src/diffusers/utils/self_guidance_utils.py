@@ -65,6 +65,7 @@ class MapsRecorder:
         self.q = None
         self.k = None
         self.maps = None
+        self.self_maps = None
 
 
 class ActivationMapsRecorder:
