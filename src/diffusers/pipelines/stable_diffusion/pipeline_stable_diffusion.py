@@ -233,15 +233,16 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         self_attn_maps = []
         attn_maps = []
         for recorder in attn_controls:
-            if self_attn_enabled:
-                self_attn_maps.append(recorder.self_maps)
+            if recorder.self_maps is not None:
+                if self_attn_enabled:
+                    self_attn_maps.append(recorder.self_maps)
+                    if save_attn_maps:
+                        self.initial_self[timestep].append(recorder.self_maps.detach().clone().cpu())
             if recorder.maps is not None:
                 for j in range(recorder.maps.shape[0]):
                     attn_maps.append(recorder.maps[j, :, :])
                     if save_attn_maps:
                         self.initial_maps[timestep].append(recorder.maps[j, :, :].detach().clone().cpu())
-                        if self_attn_enabled:
-                            self.initial_self[timestep].append(recorder.self_maps.detach().clone().cpu())
         return attn_maps, self_attn_maps
 
     # Util function to extract activations for self guidance
@@ -587,6 +588,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             adv_scale_schedule_type: str = "basic",
             save_every: int = -1,
             pipeline: str = '3d',
+            need_self_attn: bool = False,
     ):
         r"""
         The call function to the pipeline for generation.
@@ -687,7 +689,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         do_classifier_free_guidance = guidance_scale > 1.0
         # self guidance
         do_self_guidance = (self_guidance_scale > 0.0 and len(self_guidance_dict) > 0)
-        need_self_attn = "fix_self_attention" in self_guidance_dict
+        launch_separate = do_self_guidance and self_guidance_precalculate_steps > 0
+        need_self_attn = "fix_self_attention" in self_guidance_dict or need_self_attn
         # Adversarial guidance
         do_adv = adv_batch_size > 0
 
@@ -774,13 +777,13 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             self.initial_self = defaultdict(list)
 
         # Launch a separate run to save the attention maps and activations for self guidance
-        if do_self_guidance and self_guidance_precalculate_steps > 0:
+        if launch_separate:
             print('Calculating attention maps and activations')
             # Set self guidance scale to 0 for the pre-run
             self(prompt, height, width, self_guidance_precalculate_steps, guidance_scale, negative_prompt,
                  num_images_per_prompt, eta, generator, latents, initial_prompt_embeds, negative_prompt_embeds,
                  output_type, return_dict, callback, callback_steps, cross_attention_kwargs, guidance_rescale,
-                 clip_skip, 0.0, {}, True, 0)
+                 clip_skip, 0.0, {}, True, 0, need_self_attn=need_self_attn)
 
         batch_idx = -1
         with self.progress_bar(total=num_inference_steps) as progress_bar:
