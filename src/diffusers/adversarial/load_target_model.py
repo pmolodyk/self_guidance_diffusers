@@ -119,7 +119,7 @@ def get_adv_imgs(adv_patch, pipeline, targets_all, tps=None, patch_transformer=N
     return adv_imgs, targets_padded
 
 
-def get_renderer(device):
+def get_renderer(device, eval):
     # Construct model
     person = PersonModel("data", device=device)
     patch_crops: list[torch.nn.Module] = []
@@ -129,7 +129,7 @@ def get_renderer(device):
         patch_crop = torch.nn.Identity()
         patch_crop_test = patch_crop
         patch_crops.extend([patch_crop, patch_crop_test])
-        texture = SimpleTexture(map_size, map_size=torch.Size([256, 256]), tile=True, tile_size=128, device=device)
+        texture = SimpleTexture(map_size, map_size=torch.Size([256, 256]), tile=True, tile_size=128, eval=eval)
         textures.append(texture.to(device))
 
     img_synthesizer = ImageSynthesizer(

@@ -2,6 +2,7 @@ import yaml
 import os
 from tqdm import tqdm 
 import argparse
+from src.diffusers.adversarial.utils.server_utils import check_free
     
 parser = argparse.ArgumentParser(description='PyTorch Training')
 parser.add_argument('--yaml-name', type=str)
@@ -14,6 +15,9 @@ device = data_dict['device']
 prompt = data_dict['prompt']
 gsc = data_dict['guidance_scale']
 fa = data_dict['fix_appearance']
+
+if data_dict['check_free']:
+    check_free([data_dict['server_name']], [int(device[-1])])
 
 for i in tqdm(range(len(data_dict["adv_scale_schedule_dict"])), total=len(data_dict["adv_scale_schedule_dict"])):
     adv_scale_schedule_dict = data_dict['adv_scale_schedule_dict'][i]

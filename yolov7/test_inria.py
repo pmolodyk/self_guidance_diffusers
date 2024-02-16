@@ -159,7 +159,7 @@ def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thr
     theta_list = [None]
     noise = torch.rand(1, 3, 256, 256).to(device)
     if rend:  # render images
-        renderer = get_renderer(device)
+        renderer = get_renderer(device, False)
         theta_list = np.linspace(-180, 180, num_samples, endpoint=False)
         renderer.lights = renderer.light_sampler.sample(0)
     with torch.no_grad():
