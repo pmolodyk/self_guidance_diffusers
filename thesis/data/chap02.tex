@@ -1,0 +1,292 @@
+% !TeX root = ../thuthesis-example.tex
+
+\chapter{Literature Review}
+
+In this section, we will provide a broad overview of the existing methods and the references that motivated the project.
+
+\section{Digital adversarial examples}
+The first ones to discover adversarial examples were the authors of~\cite{first_adv} who used gradients of the model to construct an imperceptible to the human eye noise that changed the prediction of the DNN.
+
+Formally, a perturbation $\delta$ for a DNN $f$ is adversarial if $f(x+\delta) \ne f(x)$ and $\delta$ meets certain requirements; most commonly, we aim to minimize $\delta$ and look for a perturbation in a certain radius $\epsilon$ with respect to norm $L_{p}$: $||\delta||_p < \epsilon$.
+In this case, $x + \delta$ is called an adversarial example.
+
+After the initial discovery in~\cite{first_adv}, such adversarial examples have quickly gained popularity and have been studied in many areas and applications.
+
+Over the years, many attacks have been created for all kinds of scenarios.
+The authors of~\cite{first_adv} simply attacked a classifier by finding a small perturbation that causes a misclassification via minimizing the loss between the perturbed image and the target class.
+This method is called the L-BFGS Attack.
+Soon after, more advanced methods such as the popular Fast Gradient Sign Method (FGSM) from~\cite{fgsm} that produces adversarial examples by moving against the gradients or the Projected Gradient Descent (PGD) attack from~\cite{pgd} that is basically an improved projected iterative version of FGSM.
+The DeepFool algorithm from~\cite{deepfool} looks for an adversarial example with the smallest perturbation, and the Jacobian-based Saliency Map Attack (JSMA) from~\cite{jsma} finds the most influential pixels and changes their values to either maximum or minimum.
+~\cite{carlini_attacks} improved the L-BFGS method by switching to logits in loss and changing variables, the FGSM attack by a softer penalizing, and the JSMA method by shrinking the set of changeable pixels instead of growing it.
+
+These attacks suggest that the attacker can get the gradients of the victim model and are called white-box attacks.
+This suggestion, however, does not necessarily hold true, as in a real life scenario, the attacker is rarely given access to the model.
+If the attacker can not get the gradients, they have to use different approaches; such scenarios are called black-box attacks. 
+Many methods were developed for this case as well.
+Ones of the first famous works in this field include~\cite{probably_first_bb} and~\cite{famous_bb} who studied adversarial sample transferability.
+
+
+DNNs turned out to be so vulnerable to adversarial attacks that changing even one pixel might be enough to fool them~\cite{one_pixel}.
+\cite{universal} explored a way to create a small perturbation vector that is able to fool the classifier for any input image. 
+~\cite{classifier_patch, classifier_patch2} created patches: localized adversarial noise that only covers a limited number of pixels concentrated in one area.
+Improvements to existing methods have been introduced, like the momentum-based iterative algorithm from~\cite{adv_momentum} that boosts adversarial attacks, the translation-invariant attack method from~\cite{adv_translation_invariant} or Adam Iterative Fast Gradient Method from in~\cite{adv_optimizer} that improve the transferability between models, which is especially useful for the black-box scenarios.
+
+Another classification of the attack according to their aims is the targeted versus untargeted classification.
+Untargeted attacks, like the classical versions of FGSM, PGD and L-BFGS, simply aim to thwart the predictions of the models in any way, while the targeted attacks aim to force the model to behave in a particular way.
+Normally, in order to create a targeted attack, one has to force the predictions to move towards the needed result instead of moving away from the true prediction, so instead of maximizing loss, one has to minimize it in a specific direction.
+
+\section{Physical attacks on detectors}
+In this work, we are mainly concerned with adversarial attacks on detectors.
+The final output of a detector consists of a bounding box, a confidence score and a class for every predicted object.
+By choosing different loss functions, an attacker can construct many attacks that aim at interfering with different output values of a detector.
+Mainly, there are two types of attacks on detectors: the ones that cause misclassification of boxes, like~\cite{det_misclas}, and the ones that suppress predictions, like~\cite{physical_patch}.
+The adversarial examples that trigger misclassification were likely with a loss function that disturbed the classification loss of the detector, while the suppression attacks use losses that try to lower the confidence score of the predicted boxes.
+
+There are also different ways to attack detectors depending on how an attacker constructs their adversarial structure.
+The most commonly used ones are adversarial patches and adversarial textures.
+In some cases, optical attacks are used as well.
+For this, an attacker has to change lighting or perform the attack with lasers. 
+Even though such attacks are stealthy, they are hard to utilize in practice since they are susceptible to environmental light.
+
+Interestingly, since detector make their predictions partially based on the background, as shown in such papers as~\cite{det_context_emp_study, dec_context_evaluation, det_context_attentive}, there is a way to create an adversarial object that would suppress not only the closest boxes that overlap with the object, but also other predictions that might be far away from it.
+The authors of~\cite{dpatch} claimed to have created a patch that can suppress all predictions on an input image.
+These results are, however, non reproducible since the authors have made several fatal mistakes such as not clipping their patch to the real color range and not freezing all the weights of the detector while training the patch.
+Other papers, however, corrected the errors and produced more realistic results.
+The authors of~\cite{physical_patch} went a step further and trained their patch with augmentations that allowed printing the patch and thus affecting a detector in the physical world.
+In order to produce such realistic augmentations, the authors applied the Expectations over Transformations approach from~\cite{eot}.
+Unlike~\cite{dpatch}, who were mainly concerned with targeted attacks in a sense that they forced all predictions of the model leave their original positions to concentrate around the patch, the~\cite{physical_patch} created an untargeted attack that instead aims to hide as many objects as possible.
+Their patch is, however, pretty large as its side takes one fourth of the screen; moreover, as we have mentioned before, it neither takes into account the naturalness of its appearance nor retains its adversarial qualities when the camera angle shifts, unlike adversarial textures.
+Similarly, the authors of~\cite{patch_conf_pgd} perform a PGD attack on the confidence scores to hide all objects and produce real-life adversarial examples.
+They tried out different configurations and performed an ablation study that suggests that the classification loss, that was also used in~\cite{physical_patch}, does not improve the patch.
+
+Some other approaches aim to hide or suppress only a certain range of predictions.
+For example, the authors of~\cite{spatial_context} create a patch that makes the detector blind to all, even non-overlapping, objects of a certain class.
+Similarly,~\cite{aerial_patch} create an adversarial patch that hides vehicles from automatic detectors.
+
+A wide range of works is aimed at perturbing stop signs since they are crucial for self-driving cars \cite{signs_digital, stop_signs_detectors_380, sign_shapeshifter, sign_2020_16, signs_shadows}.
+Among them,~\cite{signs_shadows} is an optical attack: the attacker casts a shadow over a road sign to distort the predictions of the detector.
+Another direction is to thwart facial recognition with glasses~\cite{glasses1, glasses2}.
+We are, however, mainly interested in using adversarial clothes~\cite{texture, clothes2, clothes3, clothes4_inv_cloak, clothes5_tshirt, clothes6}.
+
+\section{Generating adversarial examples with GANs}
+Generative Adversarial Networks (GANs)~\cite{gan} are a powerful tool that is often used for generating samples for all kinds of datasets.
+The framework is similar to a min-max two-player game, since the pipeline of a GAN consists of two models, the generative and the discriminative one. While the generative model is responsible for producing samples, the discriminative model trains alongside and tries to predict whether a given sample came from the true distribution or was generated by the other model.
+Such a game-like process encourages both models to improve.
+
+% if you don't have enough words, talk about other areas where gans have been applied
+Even though GANs have been applied to many areas in Deep Learning, for this project, we are only concerned with a very specific task for GANS---generation of adversarial examples.
+
+To the best of our knowledge, the first ones to use GANs for generating adversarial samples were the authors of~\cite{adv_gans_first}.
+However, their work was focused on generating examples for malware.
+~\cite{adv_gans} created AdvGAN, a conditional GAN that can generate adversarial examples for images.
+AdvGAN directly generates an entire image.
+~\cite{adv_gans_unrestrained} proposed a similar GAN, but, unlike~\cite{adv_gans}, they did not assume that the norm of the perturbation is small, so their solution is more general.
+
+Closer to our task,~\cite{meta_attack} propose an algorithm that improves EoT and uses a GAN to generate printable adversarial images.
+~\cite{clothes6, adv_gan_, adv_gan_latent} use GANs to generate naturalistic physically-realizable patches. 
+The approach suggested in~\cite{clothes6, adv_gan_latent} is quite different from the other paper: they train the generators to map latent variables to a realistic patch and then traverse the latent space and find an adversarial example there.
+~\cite{adv_gan_signs, adv_gan_advert} also use GANs to generate a realistic patch, but specifically for autonomous driving tasks.
+More specifically,~\cite{adv_gan_signs} focus on attaching patches to road signs, while~\cite{adv_gan_advert} generate fake advertisements posters.
+
+Another paper that is very important for this project is ~\cite{dog_patch_clothes}.
+Not unlike the previously referenced~\cite{clothes6, adv_gan_latent}, the authors of this paper traverse a certain range around the starting point in the latent space in order to generate an adversarial patch for suppressing the prediction closest to the patch.
+To be more precise, the authors generate a patch for attaching it to the clothes of a person and thus lowering both the confidence and the correct class probability for the box associated with the person who is wearing these clothes.
+Our work is different for two reasons: first, we generate textures instead of patches; second, we intend to use a diffusion model instead of the GAN models that were used in this paper.
+
+\section{Diffusion models}
+Diffusion probabilistic models (referred to as ``diffusion mo\-dels'' for brevity) were originally introduced in~\cite{diffusion} for the denoising task.
+During training, in the forward process, an input image is gradually turned into Gaussian noise.
+During the reversed process, a U-Net-based~\cite{unet} model is trained to predict the noise for each step in the forward process, this denoising the result back to the original image.
+Thus, by passing a latent variable (Gaussian noise) to the reversed process of a trained model, one can generate a sample from the learned distribution.
+
+Immediately after the paper was published, the models became very popular on all kinds of tasks.
+~\cite{palette} developed a unified framework for four translation CV tasks: colorization, inpainting, uncropping, and JPEG restoration.
+Latent diffusion models from~\cite{stable_dif} work on a compressed latent space and achieve a state-of-the-art results on various generation tasks.
+~\cite{glide} use text conditioning to produce high-quality samples.
+~\cite{text2im_dif} presented a text-to-image photorealistic diffusion model.
+Diffusion models have also been applied to super-resolution~\cite{dif_sr, diff_den_sr}, classification and regression~\cite{dif_cl_reg}, segmentation~\cite{dif_seg, dif_med_seg}, video generation~\cite{dif_video, dif_video_long}, and many other tasks.
+Despite the rapidly growing interest in diffusion models and their quick evolution, the field remains unexplored.
+
+As far as we know,~\cite{adv_diffusion} were the first to apply diffusion models for generating adversarial examples.
+The authors use a diffusion model and optimize the latent variable instead of the generated picture, which makes their approach an unrestrained attack in a sense that they do not force the norm of the prediction be close to the unattacked sample.
+Their model, however, was only trained for the digital scenario, just like all earlier works on adversarial attacks, while we are interested in a realistic adversarial patch for the physical world.
+
+% TODO guidance 
+
+\section{3D modeling}
+Instead of optimizing a patch or a texture, one can turn to optimizing the 3D textures of objects.
+For example, the authors of~\cite{eot}, who were the first to create an adversarial 3D example---a turtle.
+In order to do this, they render multiple poses for the 3D object.
+The authors of~\cite{unavailable_guys} create 3D adversarial examples using the meshes from the ShapeNet dataset~\cite{shapenet} that contains objects like table, chair and plane.
+~\cite{fca, car_camo, dta, wang2021dual} also render photo-realistic vehicles covered with generated camouflages.
+However, all these approaches consider rigid objects, while we are interested in non-rigid objects like fabric.
+
+While training the patch on the Inria Dataset~\cite{inria}, the authors of~\cite{texture}, the paper on adversarial textures, attach a patch to the center of the box corresponding to the person after applying EoT and TPS.
+In reality, however, the clothes and people are non-rigid, meaning that the pattern on the clothes will deform as they move, and the deformation is very difficult to describe.
+This problem was addressed by the authors of our most closely related work,~\cite{zh_3d}.
+In this paper, the authors use the Voronoi diagrams to parameterize camouflage clothings, then augment them to account for possible movements and distortion of the fabric and render the 3D models.
+We intend to leverage a diffusion model instead of the Voronoi diagram parameterization to broaden the range of the patterns for the clothings.
+
+\section{Closest works}
+
+\paragraph{Adversarial Textures}
+The authors of~\cite{texture} introduced Toroidal Cropping based Expandable Generative Attack (TC-EGA), a generative method for creating adversarial textures.
+The authors create a rather complicated pipeline for generating textures that includes two generative stages.
+The generative network, unlike those used in GANs, only consists of convolutional layers, which allows us to input latent variables of any size.
+In the first stage, this generative network is trained, while in the second stage, after searching for the best local pattern with applying toroidal cropping, we can tile this pattern and generate a texture of the required size.
+The loss function basically consists of three components: the usual expectation for lowering large confidence scores, a total variance (TV) loss~\cite{glasses1}, and the information objective loss.
+The last component is responsible for maximizing the mutual information between the latent variable and the generated patch.
+In addition to EoT, the authors of~\cite{texture} employ the Thin Plate Spline technique~\cite{tps}.
+It helps create realistic augmentations like wrinkles on the fabric.
+
+% TODO more
+
+\paragraph{3D zh paper}
+
+% TODO 
+
+\paragraph{Guidance}
+
+% TODO 
+
+
+% \section{插图}
+
+% 图片通常在 \env{figure} 环境中使用 \cs{includegraphics} 插入，如图~\ref{fig:example} 的源代码。
+% 建议矢量图片使用 PDF 格式，比如数据可视化的绘图；
+% 照片应使用 JPG 格式；
+% 其他的栅格图应使用无损的 PNG 格式。
+% 注意，LaTeX 不支持 TIFF 格式；EPS 格式已经过时。
+
+% \begin{figure}
+%   \centering
+%   \includegraphics[width=0.5\linewidth]{example-image-a.pdf}
+%   \caption*{国外的期刊习惯将图表的标题和说明文字写成一段，需要改写为标题只含图表的名称，其他说明文字以注释方式写在图表下方，或者写在正文中。}
+%   \caption{示例图片标题}
+%   \label{fig:example}
+% \end{figure}
+
+% 若图或表中有附注，采用英文小写字母顺序编号，附注写在图或表的下方。
+% 国外的期刊习惯将图表的标题和说明文字写成一段，需要改写为标题只含图表的名称，其他说明文字以注释方式写在图表下方，或者写在正文中。
+
+% 如果一个图由两个或两个以上分图组成时，各分图分别以 (a)、(b)、(c)...... 作为图序，并须有分图题。
+% 推荐使用 \pkg{subcaption} 宏包来处理， 比如图~\ref{fig:subfig-a} 和图~\ref{fig:subfig-b}。
+
+% \begin{figure}
+%   \centering
+%   \subcaptionbox{分图 A\label{fig:subfig-a}}
+%     {\includegraphics[width=0.35\linewidth]{example-image-a.pdf}}
+%   \subcaptionbox{分图 B\label{fig:subfig-b}}
+%     {\includegraphics[width=0.35\linewidth]{example-image-b.pdf}}
+%   \caption{多个分图的示例}
+%   \label{fig:multi-image}
+% \end{figure}
+
+
+
+% \section{表格}
+
+% 表应具有自明性。为使表格简洁易读，尽可能采用三线表，如表~\ref{tab:three-line}。
+% 三条线可以使用 \pkg{booktabs} 宏包提供的命令生成。
+
+% \begin{table}
+%   \centering
+%   \caption{三线表示例}
+%   \begin{tabular}{ll}
+%     \toprule
+%     文件名          & 描述                         \\
+%     \midrule
+%     thuthesis.dtx   & 模板的源文件，包括文档和注释 \\
+%     thuthesis.cls   & 模板文件                     \\
+%     thuthesis-*.bst & BibTeX 参考文献表样式文件    \\
+%     \bottomrule
+%   \end{tabular}
+%   \label{tab:three-line}
+% \end{table}
+
+% 表格如果有附注，尤其是需要在表格中进行标注时，可以使用 \pkg{threeparttable} 宏包。
+% 研究生要求使用英文小写字母 a、b、c……顺序编号，本科生使用圈码 ①、②、③……编号。
+
+% \begin{table}
+%   \centering
+%   \begin{threeparttable}[c]
+%     \caption{带附注的表格示例}
+%     \label{tab:three-part-table}
+%     \begin{tabular}{ll}
+%       \toprule
+%       文件名                 & 描述                         \\
+%       \midrule
+%       thuthesis.dtx\tnote{a} & 模板的源文件，包括文档和注释 \\
+%       thuthesis.cls\tnote{b} & 模板文件                     \\
+%       thuthesis-*.bst        & BibTeX 参考文献表样式文件    \\
+%       \bottomrule
+%     \end{tabular}
+%     \begin{tablenotes}
+%       \item [a] 可以通过 xelatex 编译生成模板的使用说明文档；
+%         使用 xetex 编译 \file{thuthesis.ins} 时则会从 \file{.dtx} 中去除掉文档和注释，得到精简的 \file{.cls} 文件。
+%       \item [b] 更新模板时，一定要记得编译生成 \file{.cls} 文件，否则编译论文时载入的依然是旧版的模板。
+%     \end{tablenotes}
+%   \end{threeparttable}
+% \end{table}
+
+% 如某个表需要转页接排，可以使用 \pkg{longtable} 宏包，需要在随后的各页上重复表的编号。
+% 编号后跟表题（可省略）和“（续）”，置于表上方。续表均应重复表头。
+
+% \begin{longtable}{cccc}
+%     \caption{跨页长表格的表题}
+%     \label{tab:longtable} \\
+%     \toprule
+%     表头 1 & 表头 2 & 表头 3 & 表头 4 \\
+%     \midrule
+%   \endfirsthead
+%     \caption*{续表~\thetable\quad 跨页长表格的表题} \\
+%     \toprule
+%     表头 1 & 表头 2 & 表头 3 & 表头 4 \\
+%     \midrule
+%   \endhead
+%     \bottomrule
+%   \endfoot
+%   Row 1  & & & \\
+%   Row 2  & & & \\
+%   Row 3  & & & \\
+%   Row 4  & & & \\
+%   Row 5  & & & \\
+%   Row 6  & & & \\
+%   Row 7  & & & \\
+%   Row 8  & & & \\
+%   Row 9  & & & \\
+%   Row 10 & & & \\
+% \end{longtable}
+
+
+
+% \section{算法}
+
+% 算法环境可以使用 \pkg{algorithms} 或者 \pkg{algorithm2e} 宏包。
+
+% \renewcommand{\algorithmicrequire}{\textbf{输入：}\unskip}
+% \renewcommand{\algorithmicensure}{\textbf{输出：}\unskip}
+
+% \begin{algorithm}
+%   \caption{Calculate $y = x^n$}
+%   \label{alg1}
+%   \small
+%   \begin{algorithmic}
+%     \REQUIRE $n \geq 0$
+%     \ENSURE $y = x^n$
+
+%     \STATE $y \leftarrow 1$
+%     \STATE $X \leftarrow x$
+%     \STATE $N \leftarrow n$
+
+%     \WHILE{$N \neq 0$}
+%       \IF{$N$ is even}
+%         \STATE $X \leftarrow X \times X$
+%         \STATE $N \leftarrow N / 2$
+%       \ELSE[$N$ is odd]
+%         \STATE $y \leftarrow y \times X$
+%         \STATE $N \leftarrow N - 1$
+%       \ENDIF
+%     \ENDWHILE
+%   \end{algorithmic}
+% \end{algorithm}
