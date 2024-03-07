@@ -6,11 +6,15 @@ from torchvision import transforms as T
 from torchvision.datasets import ImageFolder
 
 from src.diffusers.adversarial.utils.google_utils import attempt_download
+from yolo2.darknet import Darknet
+from yolo2.utils import get_det_loss
+from yolov3.models.common import DetectMultiBackend
+from yolov3.utils.loss import ComputeLoss as ComputeLossv3
 from yolov7.utils.general import check_file, check_dataset
+from yolov7.utils.loss import ComputeLoss as ComputeLossv7
 from yolov7.utils.torch_utils import intersect_dicts
 from yolov7.data import load_data
 from yolov7.models.yolo import Model
-from yolo2.darknet import Darknet
 
 from src.diffusers.adversarial.utils.yolo_dataset_utils import targets2padded
 from src.diffusers.rendering import RenderState
@@ -81,6 +85,12 @@ def get_model(data_dict, device, adv_model='yolov2'):
         yolo.nc = nc  # attach number of classes to model
         yolo.gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
         yolo.names = data_dict['names']
+    elif adv_model == 'yolov3':
+        sys.path.insert(0, './yolov3')  # to get the model weights
+        w = "yolov3/yolov3.pt"
+        yolo = DetectMultiBackend(w, device)
+        yolo.model.hyp['box'], yolo.model.hyp['cls'] = 0, 0
+        yolo.model.hyp['obj'] = 1
     elif adv_model == 'yolov2':
         cfgfile = 'yolo2/yolov2.cfg'
         weights = 'yolo2/yolov2.weights'
@@ -152,3 +162,12 @@ def get_renderer(device, eval):
         img_synthesizer,
     )
     return renderer
+
+
+def get_loss_fn(adv_model, yolo):
+    if adv_model in ('yolov2', 'yolov3'):
+        return get_det_loss
+    elif adv_model == 'yolov7':
+        return ComputeLossv7(yolo)
+    else:
+        raise ValueError(f"invalid adv_model {adv_model}")

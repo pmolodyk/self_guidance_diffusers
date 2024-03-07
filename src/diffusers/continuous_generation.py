@@ -40,7 +40,8 @@ for i in tqdm(range(len(data_dict["adv_scale_schedule_dict"])), total=len(data_d
         fa_text += f"--fix-attention --attention-weight {att_weight} "
     if fat or fap:
         fa_text += f"--self-guidance-scale {data_dict['appearance_coef'][i]}"
+    adv_model = data_dict['adv_model']
 
-    cmd = f'python -m src.diffusers.sd_simple_generation --adv-coef "{dct}" --type adv --steps {steps} --device {device} --prompt "{prompt}" --guidance-scale {gsc} {fa_text}'
+    cmd = f'python -m src.diffusers.sd_simple_generation --adv-coef "{dct}" --adv-model "{adv_model}" --type adv --steps {steps} --device {device} --prompt "{prompt}" --guidance-scale {gsc} {fa_text}'
     print(cmd)
     os.system(cmd)

@@ -34,12 +34,10 @@ from ..pipeline_utils import DiffusionPipeline
 from .pipeline_output import StableDiffusionPipelineOutput
 from .safety_checker import StableDiffusionSafetyChecker
 
-from src.diffusers.adversarial.load_target_model import get_dataloader, get_model, get_adv_imgs, get_renderer
+from src.diffusers.adversarial.load_target_model import get_dataloader, get_model, get_adv_imgs, get_renderer, get_loss_fn
 from src.diffusers.adversarial.schedulers import get_scheduler
 from yolov7.data import load_data
-from yolov7.utils.loss import ComputeLoss
 from yolov7.utils.torch_utils import TPSGridGen
-from yolo2.utils import get_det_loss
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -271,8 +269,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         if adv_model == 'yolov7':
             pred = yolo(adv_imgs)
             loss, _ = compute_loss(pred[1][:3], targets_all[0].to(device))
-        elif adv_model == 'yolov2':
-            loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device))
+        elif adv_model in ('yolov3', 'yolov2'):
+            loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device), name=adv_model)
             if valid_num > 0:
                 loss = loss / valid_num
         else:
@@ -583,7 +581,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             self_guidance_precalculate_steps: int = 0,
             adv_guidance_scale: float = 1000.0,
             adv_batch_size: int = 0,
-            adv_model: str = "yolov2",
+            adv_model: str = "yolov3",
             adv_scale_schedule_dict: dict = dict(),
             adv_scale_schedule_type: str = "basic",
             save_every: int = -1,
@@ -668,7 +666,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             prompt, height, width, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds
         )
         # versions of the detector
-        assert adv_model in ('yolov2', 'yolov7')
+        assert adv_model in ('yolov2', 'yolov3', 'yolov7')
 
         # Directory for saves
         if save_every != -1:
@@ -745,7 +743,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             adv_dataloader, _ = get_dataloader(adv_batch_size, pipeline=pipeline)  # Inria | Background
             yolo = get_model(None, device, adv_model)  # Yolo
             # Loss calculation is different for the 2 models
-            compute_loss = ComputeLoss(yolo) if adv_model == 'yolov7' else get_det_loss
+            compute_loss = get_loss_fn(adv_model, yolo)
             tps, patch_transformer, patch_applier, renderer = None, None, None, None
             if pipeline == 'standard':  # Paste a patch on top of a 2d image
                 tps = TPSGridGen(torch.Size([512, 512])) 
@@ -770,6 +768,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 self.initial_maps = defaultdict(list)
                 self.initial_activations = defaultdict(list)
                 self.initial_self = defaultdict(list)
+
+            # print(len(self.initial_maps))
 
         except:  # This is a very bad way of checking if they already exist
             self.initial_maps = defaultdict(list)
@@ -824,7 +824,6 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 if do_self_guidance or save_attn_maps:
                     attn_maps, self_attn = self.extract_attn_from_recorders(attn_controls, save_attn_maps, i, need_self_attn)
                     actv_maps = self.extract_actv_from_recorders(actv_controls, save_attn_maps, i)
-
                     if do_self_guidance:
                         sg_loss = self_guidance_loss(attn_maps, actv_maps, self_attn, self_guidance_dict, self.initial_maps[i],
                                                      self.initial_activations[i], self.initial_self[i]) * self_guidance_scale
