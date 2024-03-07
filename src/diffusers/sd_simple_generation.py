@@ -14,6 +14,7 @@ parser = argparse.ArgumentParser(description='PyTorch Training')
 parser.add_argument('--adv-coef', default='None', type=str, help='step_n_1:adv_coef_1 ... or adv_coef')
 parser.add_argument('--type', type=str, help='standard|self|adv')
 parser.add_argument('--prompt', default="colorful cat drawing", type=str, help='prompt for sd')
+parser.add_argument('--adv-model', default="yolov3", type=str, help='yolov2|yolov3')
 parser.add_argument('--steps', default=256, type=int, help='number of inference steps')
 parser.add_argument('--device', default='cuda:0', help='')
 parser.add_argument('--guidance-scale', default=7.5, type=float, help='guidance scale')
@@ -119,10 +120,12 @@ elif pargs.type == 'adv':
         self_guidance_dict['fix_self_attention'] = {'weight': pargs.attention_weight}
         name += f'_fa_{pargs.attention_weight}'
     name += f'_{pargs.pipeline}'
+    if not pargs.adv_model.endswith('2'):
+        name += f'_{pargs.adv_model}'
     print('name', name)
     out = pipe(height=height, width=width, prompt=prompt, self_guidance_dict=self_guidance_dict, latents=latents,
             num_inference_steps=num_inference_steps, self_guidance_scale=self_guidance_scale, 
-            adv_guidance_scale=adv_guidance_scale, adv_batch_size=12, adv_model='yolov2',
+            adv_guidance_scale=adv_guidance_scale, adv_batch_size=12, adv_model=pargs.adv_model,
             guidance_scale=guidance_scale, save_every=save_every, adv_scale_schedule_dict=adv_scale_schedule_dict,
             adv_scale_schedule_type=pargs.scale_type, self_guidance_precalculate_steps=num_inference_steps,
             pipeline=pargs.pipeline)
