@@ -270,7 +270,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             pred = yolo(adv_imgs)
             loss, _ = compute_loss(pred[1][:3], targets_all[0].to(device))
         elif adv_model in ('yolov3', 'yolov2'):
-            loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device))
+            loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device), name=adv_model)
             if valid_num > 0:
                 loss = loss / valid_num
         else:
