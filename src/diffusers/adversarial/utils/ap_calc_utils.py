@@ -214,7 +214,7 @@ def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64,
     return res
 
 
-def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0'):
+def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0', calc_ap=True):
     with open(f'{load_path}/aps.yaml', 'r') as f:
         calculated = yaml.load(f, Loader=yaml.SafeLoader)
     
@@ -222,7 +222,7 @@ def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0'):
     print('Checking whether the APs are precalculated...')
     for img_path in tqdm(img_paths):
         patch_name = img_path.split('/')[-1]
-        if patch_name not in calculated['aps']:
+        if patch_name not in calculated['aps'] and calc_ap:
             get_save_aps(device, load_path, patch_name)
  
     with open(f'{load_path}/aps.yaml', 'r') as f:
@@ -231,7 +231,7 @@ def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0'):
 
     for img_path in img_paths:
         patch_name = img_path.split('/')[-1]
-        ap = calculated['aps'][patch_name]
+        ap = calculated['aps'][patch_name] if calc_ap else -1
         path_split = patch_name.split('_') 
         n = int(path_split[1])
         path_to = '/'.join(img_path.split('/')[:-1])
@@ -252,13 +252,41 @@ def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0'):
         to_plot.append((ap, ys, img_path, n, l2l))
     return to_plot
 
-def plot_patches(to_plot, sort_key=lambda x: -float(x[-1]), ncols=5, title='ap'):
-    to_plot = sorted(to_plot, key=sort_key)
+
+def get_sg_coef(x):
+    patch_name = x[2].split('/')[-1].split('_')
+    if 'fx' not in patch_name and 'fa' not in patch_name:
+        return 0
+    if 'fx' in patch_name:
+        return float(patch_name[patch_name.index('fx') + 1])
+    return float(patch_name[patch_name.index('fa') - 1])
+    
+def get_fa_coef(x):
+    patch_name = x[2].split('/')[-1].split('_')
+    if 'fa' not in patch_name:
+        return 0
+    return float(patch_name[patch_name.index('fa') + 1]) * get_sg_coef(x)
+
+sort_dict = {
+    'l2': lambda x: -float(x[-1]),
+    'ap': lambda x: -float(x[0]),
+    'fx': get_sg_coef,
+    'fa': get_fa_coef,
+}
+
+def get_sort_values(sort_key):
+    keys = sort_key.split('_')
+    return lambda x: tuple([sort_dict[key](x) for key in keys])
+
+def plot_patches(to_plot, sort_key='l2', ncols=5, title='ap'):
+    to_plot = sorted(to_plot, key=get_sort_values(sort_key))
     nrows = (len(to_plot) + ncols - 1) // ncols
     f, ax = plt.subplots(ncols=ncols, nrows=nrows, sharex=True, sharey=True, figsize=(3 * ncols + 1, len(to_plot) // ncols * 3 + 1))
-    f.tight_layout()
+    f.set_tight_layout(True)
+    # f.patch.set_visible(False)
     for r in range(nrows):
         for c in range(ncols):
+            ax[r, c].axis('off')
             if r * ncols + c >= len(to_plot):
                 f.delaxes(ax[r, c])
                 continue
@@ -266,25 +294,23 @@ def plot_patches(to_plot, sort_key=lambda x: -float(x[-1]), ncols=5, title='ap')
             ttl = ''
             img_name = to_plot[r * ncols + c][2].split('/')[-1][:-4].split('_')
             if 'ap' in title.split('_'):
-                ttl += str(to_plot[r * ncols + c][0]) + ' '
+                ttl += '%.2f' % (100 * float(to_plot[r * ncols + c][0]))
+            sg = None
             if 'fx' in title.split('_') or 'fa' in title.split('_'):
-                sg = None
                 if 'fa' in img_name:
                     sg = img_name[img_name.index('fa') - 1]
                 elif 'fx' in img_name:
                     sg = img_name[img_name.index('fx') + 1]
                 if sg:
-                    if float(sg) > 1:
-                        sg = int(float(sg))
-                    ttl += ' sg %.1E' % Decimal(sg)
+                    ttl += ' sg %.1E' % Decimal(float(sg))
             if 'fx' in title.split('_') and 'fx' in img_name:
                 ttl += ' fx'
             if 'fa' in title.split('_') and 'fa' in img_name:
                 fa_value = float(img_name[img_name.index('fa') + 1])
-                if fa_value != 1:
-                    ttl += ' fa_%.1E' % Decimal(fa_value)
-                else:
-                    ttl += ' fa'
+                # if fa_value != 1:
+                ttl += ' fa_%.1E' % Decimal(fa_value * float(sg))
+                # else:
+                #     ttl += ' fa'
             ax[r, c].title.set_text(ttl)
     plt.subplots_adjust(wspace=0, hspace=0.2)
     plt.savefig('tbd.png')
