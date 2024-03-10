@@ -8,7 +8,8 @@ from src.diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import S
 
 
 # reinstalling diffusers
-os.system(os.getcwd() + "/src/diffusers/setup_sh.sh")
+print('Reinstalling Diffusers...')
+os.system(os.getcwd() + "/src/diffusers/setup_sh.sh >/dev/null 2>&1")
 
 parser = argparse.ArgumentParser(description='PyTorch Training')
 parser.add_argument('--adv-coef', default='None', type=str, help='step_n_1:adv_coef_1 ... or adv_coef')
@@ -26,6 +27,8 @@ parser.add_argument('--fix-attention', default=False, action="store_true", help=
 parser.add_argument('--self-guidance-scale', default=1000, type=float, help='self guidance scale')
 parser.add_argument('--attention-weight', default=1, type=float, help='attention weight in self guidance loss')
 parser.add_argument('--pipeline', default='3d', type=str, help='standard|3d')
+parser.add_argument('--lo-steps', default=0, type=int, help='number of latent optimization steps')
+parser.add_argument('--lo-coef', default=1e4, type=float, help='latent optimization scale')
 
 pargs = parser.parse_args()
 
@@ -119,18 +122,21 @@ elif pargs.type == 'adv':
     if pargs.fix_attention:
         self_guidance_dict['fix_self_attention'] = {'weight': pargs.attention_weight}
         name += f'_fa_{pargs.attention_weight}'
+    if pargs.lo_steps > 0:
+        name += f'_lo_{pargs.lo_steps}_{pargs.lo_coef}'
     name += f'_{pargs.pipeline}'
-    if not pargs.adv_model.endswith('2'):
-        name += f'_{pargs.adv_model}'
-    print('name', name)
     out = pipe(height=height, width=width, prompt=prompt, self_guidance_dict=self_guidance_dict, latents=latents,
             num_inference_steps=num_inference_steps, self_guidance_scale=self_guidance_scale, 
             adv_guidance_scale=adv_guidance_scale, adv_batch_size=12, adv_model=pargs.adv_model,
             guidance_scale=guidance_scale, save_every=save_every, adv_scale_schedule_dict=adv_scale_schedule_dict,
             adv_scale_schedule_type=pargs.scale_type, self_guidance_precalculate_steps=num_inference_steps,
-            pipeline=pargs.pipeline)
+            pipeline=pargs.pipeline, num_latent_opt_steps=pargs.lo_steps, latent_opt_scale=pargs.lo_coef)
 else:
     raise ValueError(f"incorrect type {pargs.type}")
+
+if not pargs.adv_model.endswith('2'):
+    name += f'_{pargs.adv_model}'
+print('name', name)
 
 out.images[0].show(title=name)
 os.makedirs(f'patches/{"_".join(prompt.split())}', exist_ok=True)

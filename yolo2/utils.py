@@ -508,6 +508,7 @@ def plot_boxes_cv2(img, boxes, savename=None, class_names=None, color=None):
         cv2.imwrite(savename, img)
     return img
 
+
 def back_text(draw, x, y, msg, backc, fontc, font=None):
     if font is None:
         font = draw.getfont()
@@ -753,7 +754,8 @@ def truths_length(truths):
     return len(truths)
 
 
-def get_det_loss(darknet_model, p_img, lab_batch, name='yolov2', conf_thresh=0.01, iou_thresh=0.3):
+def get_det_loss(darknet_model, p_img, lab_batch, name='yolov2', conf_thresh=0.01, iou_thresh=0.3, mode='max'):
+    assert mode in ('sum', 'max')
     valid_num = 0
     det_loss = p_img.new_zeros([])
     output = darknet_model(p_img)
@@ -770,7 +772,7 @@ def get_det_loss(darknet_model, p_img, lab_batch, name='yolov2', conf_thresh=0.0
                 idxs = iou_max > iou_thresh
                 det_confs = all_boxes[ii][idxs][:, 4]
                 if det_confs.shape[0] > 0:
-                    max_prob = det_confs.max()
+                    max_prob = det_confs.max() if mode == 'max' else det_confs.sum()
                     det_loss = det_loss + max_prob
                     valid_num += 1
 
