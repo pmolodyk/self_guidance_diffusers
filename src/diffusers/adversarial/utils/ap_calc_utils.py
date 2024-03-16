@@ -238,7 +238,7 @@ def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0', calc_ap=
         path_split = patch_name.split('_') 
         n = int(path_split[1])
         path_to = '/'.join(img_path.split('/')[:-1])
-        original_image = path_to + '/basic_' + str(n) + img_path.split('3d')[-1]
+        original_image = path_to + '/basic_' + str(n) + img_path.split('3d')[-1].replace("_yolov3", "")
         l2l = 0
         if met_cnt:
             if 'basic' in img_path:

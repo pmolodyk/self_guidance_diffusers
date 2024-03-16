@@ -8,13 +8,10 @@ from torchvision.datasets import ImageFolder
 from src.diffusers.adversarial.utils.google_utils import attempt_download
 from yolo2.darknet import Darknet
 from yolo2.utils import get_det_loss
-from yolov3.models.common import DetectMultiBackend
-from yolov3.utils.loss import ComputeLoss as ComputeLossv3
+from yolo3.yolov3_models import YOLOv3Darknet
 from yolov7.utils.general import check_file, check_dataset
 from yolov7.utils.loss import ComputeLoss as ComputeLossv7
-from yolov7.utils.torch_utils import intersect_dicts
 from yolov7.data import load_data
-from yolov7.models.yolo import Model
 
 from src.diffusers.adversarial.utils.yolo_dataset_utils import targets2padded
 from src.diffusers.rendering import RenderState
@@ -25,7 +22,6 @@ from src.diffusers.rendering.texture.simple_texture import SimpleTexture
 from src.diffusers.rendering.image_synthesizer import ImageSynthesizer
 from src.diffusers.rendering.light import LightSampler
 
-import sys
 
 # Load Inria dataset
 def get_dataloader(adv_batch_size, adv_model='yolov2', pipeline='3d'):
@@ -64,33 +60,11 @@ def get_dataloader(adv_batch_size, adv_model='yolov2', pipeline='3d'):
 
 
 def get_model(data_dict, device, adv_model='yolov2'):
-    if adv_model == 'yolov7':
-        sys.path.insert(0, './yolov7')  # to get the model weights
-        weights = 'yolov7/yolov7.pt'
-        attempt_download(weights)  # download if not found locally
-        ckpt = torch.load(weights, map_location=device)  # load checkpoint
-        hyp = check_file('data/hyp.scratch.p5.yaml')
-        with open(hyp) as f:  # Hyperparameters
-            hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
-            if 'anchors' not in hyp:  # anchors commented in hyp.yaml
-                hyp['anchors'] = 3
-        nc = int(data_dict['nc'])  # number of classes
-        yolo = Model(ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)
-        state_dict = ckpt['model'].float().state_dict()  # to FP32
-        state_dict = intersect_dicts(state_dict, yolo.state_dict())
-        yolo.load_state_dict(state_dict, strict=False)  # load
-        yolo.hyp = hyp
-        yolo.hyp['box'], yolo.hyp['cls'] = 0, 0  # boxes don't matter, neither does (mis)classification
-        yolo.hyp['obj'] = 1  # we just want to avoid detection
-        yolo.nc = nc  # attach number of classes to model
-        yolo.gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
-        yolo.names = data_dict['names']
-    elif adv_model == 'yolov3':
-        sys.path.insert(0, './yolov3')  # to get the model weights
-        w = "yolov3/yolov3.pt"
-        yolo = DetectMultiBackend(w, device)
-        yolo.model.hyp['box'], yolo.model.hyp['cls'] = 0, 0
-        yolo.model.hyp['obj'] = 1
+    if adv_model == 'yolov3':
+        yolo = YOLOv3Darknet().to(device)
+        weights = 'data/yolov3.weights'
+        attempt_download(weights, 'https://pjreddie.com/media/files/yolov3.weights', True)
+        yolo.load_darknet_weights(weights)
     elif adv_model == 'yolov2':
         cfgfile = 'yolo2/yolov2.cfg'
         weights = 'yolo2/yolov2.weights'
@@ -98,6 +72,8 @@ def get_model(data_dict, device, adv_model='yolov2'):
         yolo = Darknet(cfgfile)
         yolo.load_weights(weights)
         yolo = yolo.to(device)
+    elif adv_model == 'faster-rcnn':
+        pass
     else:
         raise ValueError(f"No model named {adv_model}")
 
@@ -165,7 +141,7 @@ def get_renderer(device, eval):
 
 
 def get_loss_fn(adv_model, yolo):
-    if adv_model in ('yolov2', 'yolov3'):
+    if adv_model in ('yolov2', 'yolov3', 'faster-rcnn'):
         return get_det_loss
     elif adv_model == 'yolov7':
         return ComputeLossv7(yolo)

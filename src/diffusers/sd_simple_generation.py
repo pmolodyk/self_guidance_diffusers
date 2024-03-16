@@ -30,6 +30,7 @@ parser.add_argument('--pipeline', default='3d', type=str, help='standard|3d')
 parser.add_argument('--lo-steps', default=0, type=int, help='number of latent optimization steps')
 parser.add_argument('--lo-coef', default=1e4, type=float, help='latent optimization scale')
 
+
 pargs = parser.parse_args()
 
 device = pargs.device
@@ -139,5 +140,8 @@ if not pargs.adv_model.endswith('2'):
 print('name', name)
 
 out.images[0].show(title=name)
-os.makedirs(f'patches/{"_".join(prompt.split())}', exist_ok=True)
-out.images[0].save(f'patches/{"_".join(prompt.split())}/{name}_{prompt.replace(" ", "_")}.png')
+patch_path = f'patches/{"_".join(prompt.split())}'
+patch_name = f'{name}_{prompt.replace(" ", "_")}.png'
+os.makedirs(patch_path, exist_ok=True)
+out.images[0].save(f'{patch_path}/{patch_name}')
+

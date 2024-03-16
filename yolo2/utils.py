@@ -390,13 +390,25 @@ def get_region_boxes_general(output, model, conf_thresh, name='yolov2', img_size
             output = output[0]
         all_boxes = get_region_boxes(output, conf_thresh, num_classes, anchors, num_anchors, name=name)
     elif name == 'yolov3':
-        output = output[0]
-        batch, nboxes, _ = output.shape
-        output = output.view(batch * nboxes, 85).transpose(0, 1)
-        xs, ys, ws, hs, det_confs = output[:5]
-        cls_max_confs, cls_max_ids = output[5:].max(0)
-        raw_boxes = torch.stack([xs / img_size, ys / img_size, ws / img_size, hs / img_size, det_confs, cls_max_confs, cls_max_ids], 1).view(batch, nboxes, 7)
-        inds = (det_confs > conf_thresh).view(batch, nboxes)
+        boxes = []
+        for o, yl in zip(output, model.yolo_layers):
+            B, A, W, H, C = o.shape
+            o = o.permute(0, 1, 4, 2, 3).contiguous().view(B, A * C, W, H)
+            b = get_region_boxes(o, conf_thresh, yl.num_classes, 
+                                 yl.anchors.flatten().div(yl.stride).tolist(), 
+                                 yl.num_anchors, name=name)
+            boxes.append(b)
+        all_boxes = [torch.cat([boxes[i][j] for i in range(len(output))], 0) 
+                                            for j in range(output[0].shape[0])]
+            
+    elif name == 'faster-rcnn':
+        print(output)
+        _bboxes, _labels, _scores = output
+        batch = len(_bboxes)
+        raw_boxes = [torch.stack([_bboxes[i] / img_size, _scores[i], 
+                                  torch.ones_like(_labels[i]), _labels[i]]) for i in range(batch)]
+        # inds = (_scores > conf_thresh).view(batch, ?)
+        inds = [srcs > conf_thresh for srcs in _scores]
         all_boxes = [b[i] for b, i in zip(raw_boxes, inds)]
     else:
         raise ValueError
@@ -443,6 +455,8 @@ def get_region_boxes(output, conf_thresh, num_classes, anchors, num_anchors, onl
 
     if name == 'yolov2':
         cls_confs = output[5:5 + num_classes].transpose(0, 1).softmax(-1)
+    elif name == 'yolov3':
+        cls_confs = output[5:5 + num_classes].transpose(0, 1).sigmoid()
     else:
         raise ValueError
 
@@ -754,13 +768,16 @@ def truths_length(truths):
     return len(truths)
 
 
-def get_det_loss(darknet_model, p_img, lab_batch, name='yolov2', conf_thresh=0.01, iou_thresh=0.3, mode='max'):
+def get_det_loss(detector, p_img, lab_batch, name='yolov2', conf_thresh=0.01, iou_thresh=0.3, mode='max'):
     assert mode in ('sum', 'max')
     valid_num = 0
     det_loss = p_img.new_zeros([])
-    output = darknet_model(p_img)
     if name in ('yolov2', 'yolov3'):
-        all_boxes_t = [get_region_boxes_general(output, darknet_model, conf_thresh=conf_thresh, name=name)]
+        output = detector(p_img)
+        all_boxes_t = [get_region_boxes_general(output, detector, conf_thresh=conf_thresh, name=name)]
+    elif name == 'faster-rcnn':
+        output = detector(p_img)
+        all_boxes_t = [get_region_boxes_general(output, detector, conf_thresh=conf_thresh, name=name)]
     else:
         raise ValueError
 

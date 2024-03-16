@@ -3,7 +3,8 @@ import os
 from tqdm import tqdm 
 import argparse
 from src.diffusers.adversarial.utils.server_utils import check_free
-    
+from src.diffusers.adversarial.utils.ap_calc_utils import get_save_aps
+
 parser = argparse.ArgumentParser(description='PyTorch Training')
 parser.add_argument('--yaml-name', type=str)
 pargs = parser.parse_args()
@@ -52,3 +53,25 @@ for i in tqdm(range(n), total=n):
     cmd = f'python -m src.diffusers.sd_simple_generation --adv-coef "{dct}" --adv-model "{adv_model}" --type adv --steps {steps} --device {device} --prompt "{prompt}" --guidance-scale {gsc} {fa_text} {lo_text}'
     print(cmd)
     os.system(cmd)
+
+    if 'ap_models' in data_dict:
+        name = f'adv_{steps}_{int(gsc)}_{dct.replace(" ", "_")}'
+        if len(fa_text) > 1:
+            name += f'_fx'
+        if fat or fap:
+            name += f"_{data_dict['appearance_coef'][i]}"
+        if fat:
+            name += f'_fa_{att_weight}'
+        if lo_steps[i] > 0:
+            name += f'_lo_{lo_steps[i]}_{lo_coef[i]}'
+        name += '_3d'
+        if not adv_model.endswith('2'):
+            name += f'_{adv_model}'
+        patch_path = f'patches/{"_".join(prompt.split())}'
+        patch_name = f'{name}_{prompt.replace(" ", "_")}.png'
+        print('patch_path:', patch_path)
+        print('patch_name:', patch_name)
+        for ap_model in data_dict['ap_models']:
+            ap = get_save_aps(device, patch_path, patch_name, ap_model)
+            print(ap_model, ap)
+
