@@ -1,6 +1,7 @@
 import yaml
 import os
 from tqdm import tqdm 
+from time import sleep
 import argparse
 from src.diffusers.adversarial.utils.server_utils import check_free
 from src.diffusers.adversarial.utils.ap_calc_utils import get_save_aps
@@ -55,6 +56,7 @@ for i in tqdm(range(n), total=n):
     os.system(cmd)
 
     if 'ap_models' in data_dict:
+        sleep(5)
         name = f'adv_{steps}_{int(gsc)}_{dct.replace(" ", "_")}'
         if len(fa_text) > 1:
             name += f'_fx'
@@ -71,7 +73,9 @@ for i in tqdm(range(n), total=n):
         patch_name = f'{name}_{prompt.replace(" ", "_")}.png'
         print('patch_path:', patch_path)
         print('patch_name:', patch_name)
-        for ap_model in data_dict['ap_models']:
-            ap = get_save_aps(device, patch_path, patch_name, ap_model)
-            print(ap_model, ap)
+        for now_model in data_dict["ap_models"]:
+            cmd = f'python -m src.diffusers.test_3d --load-path "{patch_path}" --mask "{patch_name}" --device {device} --net "{now_model}"'
+            print(cmd)
+            os.system(cmd)
+            sleep(5)
 
