@@ -147,7 +147,7 @@ def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thr
 
 
 def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64, no_save_res=False):
-    assert net in ("yolov2", "yolov3")
+    assert net in ("yolov2", "yolov3", "faster-rcnn")
     with open(check_file('data/inria.yaml')) as f:
         data_dict = yaml.load(f, Loader=yaml.SafeLoader)  # data dict
     darknet_model = get_model(data_dict, torch.device(device), net)
@@ -186,7 +186,7 @@ def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64,
             split_path = img_path.split('/')
             path_to_yaml = '/'.join(split_path[:-1])
             patch_name = split_path[-1]
-            aps_name = "aps_yolov3" if net == "yolov3" else "aps"
+            aps_name = "aps" if net == "yolov2" else f"aps_{net}"
             
             if not os.path.isfile(f'{path_to_yaml}/{aps_name}.yaml'):
                 with open(f'{path_to_yaml}/{aps_name}.yaml', 'w') as f:
@@ -216,8 +216,8 @@ def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64,
 
 
 def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0', calc_ap=True, model_name=''):
-    assert model_name in ("yolov2", "yolov3")
-    aps_name = "aps_yolov3" if model_name == "yolov3" else "aps"
+    assert model_name in ("yolov2", "yolov3", "faster-rcnn")
+    aps_name = "aps" if model_name == "yolov2" else f"aps_{model_name}"
     with open(f'{load_path}/{aps_name}.yaml', 'r') as f:
         calculated = yaml.load(f, Loader=yaml.SafeLoader)
     
@@ -238,7 +238,7 @@ def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0', calc_ap=
         path_split = patch_name.split('_') 
         n = int(path_split[1])
         path_to = '/'.join(img_path.split('/')[:-1])
-        original_image = path_to + '/basic_' + str(n) + img_path.split('3d')[-1].replace("_yolov3", "")
+        original_image = path_to + '/basic_' + str(n) + img_path.split('3d')[-1].replace("_yolov3", "").replace("_faster-rcnn", "")
         l2l = 0
         if met_cnt:
             if 'basic' in img_path:

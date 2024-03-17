@@ -411,6 +411,14 @@ def get_region_boxes_general(output, model, conf_thresh, name='yolov2', img_size
             boxes = torch.stack(boxes, 1)
             boxes = boxes[boxes[:, 4] > conf_thresh]
             all_boxes.append(boxes)
+    elif name == 'detr':
+        bboxes = output['pred_boxes']
+        scores, labels = output['pred_logits'].softmax(dim=-1)[..., :-1].max(-1)
+        bboxes = torch.cat([bboxes, scores.unsqueeze(-1), scores.unsqueeze(-1), labels.unsqueeze(-1)-1], -1)
+        all_boxes = []
+        for boxes in bboxes:
+            boxes = boxes[boxes[:, 4] > conf_thresh]
+            all_boxes.append(boxes)
     else:
         raise ValueError
     if lab_filter is not None:
@@ -817,6 +825,30 @@ def get_det_loss(detector, p_img, lab_batch, name='yolov2', conf_thresh=0.01, io
                     _, ids = torch.max(ious, dim=0) # get the bbox w/ biggest iou compared to gt
                     det_loss.append(scores[ids])
                     # max_probs.append(scores[ids])
+                    num += 1
+        if len(det_loss) > 0:
+            det_loss = torch.stack(det_loss).mean()
+        return det_loss, min(num, 1)
+    elif name == 'detr':
+        det_loss = []
+        num = 0
+        prob, labels = output['pred_logits'].softmax(dim=-1)[..., :-1].max(-1)
+        batch = prob.shape[0]
+        for i in range(batch):
+            bbox = output['pred_boxes'][i]
+            bboxes = to_iou_format(bbox, img_size)
+            label_boxes = lab_batch[i][:truths_length(lab_batch[i]), 1:]
+            label_boxes = to_iou_format(label_boxes, img_size)
+            ious = torchvision.ops.box_iou(bboxes.view(-1, 4).detach(),
+                                           label_boxes).squeeze(-1)
+            mask = ious.ge(iou_thresh)
+            mask = mask.logical_and(labels[i] == 1)
+            ious = ious[mask]
+            scores = prob[i][mask]
+            if len(ious) > 0:
+                if mode == 'max':
+                    _, ids = torch.max(ious, dim=0) # get the bbox w/ biggest iou compared to gt
+                    det_loss.append(scores[ids])
                     num += 1
         if len(det_loss) > 0:
             det_loss = torch.stack(det_loss).mean()
