@@ -4,6 +4,7 @@ import warnings
 from os import path
 from torchvision import transforms as T
 from torchvision.datasets import ImageFolder
+from torchvision.models import detection
 
 from src.diffusers.adversarial.utils.google_utils import attempt_download
 from yolo2.darknet import Darknet
@@ -73,7 +74,10 @@ def get_model(data_dict, device, adv_model='yolov2'):
         yolo.load_weights(weights)
         yolo = yolo.to(device)
     elif adv_model == 'faster-rcnn':
-        pass
+        yolo = detection.fasterrcnn_resnet50_fpn(pretrained=True).to(device)
+    elif adv_model == 'detr':
+        yolo = torch.hub.load('facebookresearch/detr:main', 'detr_resnet50', 
+                              pretrained=True).to(device)
     else:
         raise ValueError(f"No model named {adv_model}")
 

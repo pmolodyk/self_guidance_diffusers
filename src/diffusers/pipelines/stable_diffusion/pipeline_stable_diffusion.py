@@ -274,6 +274,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device), name=adv_model, mode='max')
             if valid_num > 0:
                 loss = loss / valid_num
+            else:
+                loss = 0
         return loss
 
     def encode_prompt(
@@ -676,7 +678,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             prompt, height, width, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds
         )
         # versions of the detector
-        assert adv_model in ('yolov2', 'yolov3', 'yolov7')
+        assert adv_model in ('yolov2', 'yolov3', 'faster-rcnn')
 
         # Directory for saves
         if save_every != -1:
@@ -877,8 +879,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
                     adv_loss = self.compute_adv_loss(adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded)
 
-                    grads = torch.autograd.grad(adv_guidance_scale * adv_loss, latents)
-                    scaled_guidance_funcs.append(grads[0])
+                    if adv_loss != 0:
+                        grads = torch.autograd.grad(adv_guidance_scale * adv_loss, latents)
+                        scaled_guidance_funcs.append(grads[0])
 
                     if do_other:
                         adv_loss_other = self.compute_adv_loss(adv_model[:-1] + str(5 - int(adv_model[-1])), adv_imgs.detach().cpu(), compute_loss, yolo_other, targets_all.detach().cpu(), targets_padded.detach().cpu())
