@@ -790,7 +790,7 @@ def get_det_loss(detector, p_img, lab_batch, name='yolov2', conf_thresh=0.01, io
     assert mode in ('sum', 'max')
     valid_num = 0
     det_loss = p_img.new_zeros([])
-    if name in ('yolov2', 'yolov3', 'faster-rcnn'):
+    if name in ('yolov2', 'yolov3', 'faster-rcnn', 'detr'):
         output = detector(p_img)
         if name in ('yolov2', 'yolov3'):
             all_boxes = get_region_boxes_general(output, detector, conf_thresh=conf_thresh, name=name)
