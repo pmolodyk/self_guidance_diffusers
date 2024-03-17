@@ -390,14 +390,35 @@ def get_region_boxes_general(output, model, conf_thresh, name='yolov2', img_size
             output = output[0]
         all_boxes = get_region_boxes(output, conf_thresh, num_classes, anchors, num_anchors, name=name)
     elif name == 'yolov3':
-        output = output[0]
-        batch, nboxes, _ = output.shape
-        output = output.view(batch * nboxes, 85).transpose(0, 1)
-        xs, ys, ws, hs, det_confs = output[:5]
-        cls_max_confs, cls_max_ids = output[5:].max(0)
-        raw_boxes = torch.stack([xs / img_size, ys / img_size, ws / img_size, hs / img_size, det_confs, cls_max_confs, cls_max_ids], 1).view(batch, nboxes, 7)
-        inds = (det_confs > conf_thresh).view(batch, nboxes)
-        all_boxes = [b[i] for b, i in zip(raw_boxes, inds)]
+        boxes = []
+        for o, yl in zip(output, model.yolo_layers):
+            B, A, W, H, C = o.shape
+            o = o.permute(0, 1, 4, 2, 3).contiguous().view(B, A * C, W, H)
+            b = get_region_boxes(o, conf_thresh, yl.num_classes, 
+                                 yl.anchors.flatten().div(yl.stride).tolist(), 
+                                 yl.num_anchors, name=name)
+            boxes.append(b)
+        all_boxes = [torch.cat([boxes[i][j] for i in range(len(output))], 0) 
+                                            for j in range(output[0].shape[0])]
+            
+    elif name == 'faster-rcnn':
+        all_boxes = []
+        for d in output:
+            boxes = [(d['boxes'][:, 0] + d['boxes'][:, 2]) / (2 * img_size),
+                     (d['boxes'][:, 1] + d['boxes'][:, 3]) / (2 * img_size),
+                     (d['boxes'][:, 2] - d['boxes'][:, 0]) / img_size, (d['boxes'][:, 3] - d['boxes'][:, 1]) / img_size]
+            boxes = boxes + [d['scores'], d['scores'], d['labels'] - 1]
+            boxes = torch.stack(boxes, 1)
+            boxes = boxes[boxes[:, 4] > conf_thresh]
+            all_boxes.append(boxes)
+    elif name == 'detr':
+        bboxes = output['pred_boxes']
+        scores, labels = output['pred_logits'].softmax(dim=-1)[..., :-1].max(-1)
+        bboxes = torch.cat([bboxes, scores.unsqueeze(-1), scores.unsqueeze(-1), labels.unsqueeze(-1)-1], -1)
+        all_boxes = []
+        for boxes in bboxes:
+            boxes = boxes[boxes[:, 4] > conf_thresh]
+            all_boxes.append(boxes)
     else:
         raise ValueError
     if lab_filter is not None:
@@ -443,6 +464,8 @@ def get_region_boxes(output, conf_thresh, num_classes, anchors, num_anchors, onl
 
     if name == 'yolov2':
         cls_confs = output[5:5 + num_classes].transpose(0, 1).softmax(-1)
+    elif name == 'yolov3':
+        cls_confs = output[5:5 + num_classes].transpose(0, 1).sigmoid()
     else:
         raise ValueError
 
@@ -507,6 +530,7 @@ def plot_boxes_cv2(img, boxes, savename=None, class_names=None, color=None):
         print("save plot results to %s" % savename)
         cv2.imwrite(savename, img)
     return img
+
 
 def back_text(draw, x, y, msg, backc, fontc, font=None):
     if font is None:
@@ -753,16 +777,27 @@ def truths_length(truths):
     return len(truths)
 
 
-def get_det_loss(darknet_model, p_img, lab_batch, name='yolov2', conf_thresh=0.01, iou_thresh=0.3):
+def to_iou_format(boxes, img_size):
+    w1 = boxes[..., 0] - boxes[..., 2] / 2
+    h1 = boxes[..., 1] - boxes[..., 3] / 2
+    w2 = boxes[..., 0] + boxes[..., 2] / 2
+    h2 = boxes[..., 1] + boxes[..., 3] / 2
+    bbox = torch.stack([w1, h1, w2, h2], dim=-1)
+    return bbox * img_size
+
+
+def get_det_loss(detector, p_img, lab_batch, name='yolov2', conf_thresh=0.01, iou_thresh=0.3, mode='max', img_size=416):
+    assert mode in ('sum', 'max')
     valid_num = 0
     det_loss = p_img.new_zeros([])
-    output = darknet_model(p_img)
-    if name in ('yolov2', 'yolov3'):
-        all_boxes_t = [get_region_boxes_general(output, darknet_model, conf_thresh=conf_thresh, name=name)]
+    if name in ('yolov2', 'yolov3', 'faster-rcnn'):
+        output = detector(p_img)
+        if name in ('yolov2', 'yolov3'):
+            all_boxes = get_region_boxes_general(output, detector, conf_thresh=conf_thresh, name=name)
     else:
         raise ValueError
 
-    for all_boxes in all_boxes_t:
+    if name in ('yolov2', 'yolov3'):
         for ii in range(p_img.shape[0]):
             if all_boxes[ii].shape[0] > 0:
                 iou_mat = bbox_iou_mat(all_boxes[ii][..., :4], lab_batch[ii][:truths_length(lab_batch[ii]), 1:], False)
@@ -770,8 +805,51 @@ def get_det_loss(darknet_model, p_img, lab_batch, name='yolov2', conf_thresh=0.0
                 idxs = iou_max > iou_thresh
                 det_confs = all_boxes[ii][idxs][:, 4]
                 if det_confs.shape[0] > 0:
-                    max_prob = det_confs.max()
+                    max_prob = det_confs.max() if mode == 'max' else det_confs.sum()
                     det_loss = det_loss + max_prob
                     valid_num += 1
-
-    return det_loss, valid_num
+        return det_loss, valid_num
+    elif name == 'faster-rcnn':
+        det_loss = []
+        num = 0
+        for i, boxes in enumerate(output):
+            label_boxes = lab_batch[i][:truths_length(lab_batch[i]), 1:]
+            label_boxes = to_iou_format(label_boxes, img_size)
+            ious = torchvision.ops.box_iou(boxes['boxes'], label_boxes).squeeze(1)
+            mask = ious.ge(iou_thresh)
+            mask = mask.logical_and(boxes['labels'] == 1)
+            ious = ious[mask]
+            scores = boxes['scores'][mask]
+            if len(ious) > 0:
+                if mode == 'max':
+                    _, ids = torch.max(ious, dim=0) # get the bbox w/ biggest iou compared to gt
+                    det_loss.append(scores[ids])
+                    # max_probs.append(scores[ids])
+                    num += 1
+        if len(det_loss) > 0:
+            det_loss = torch.stack(det_loss).mean()
+        return det_loss, min(num, 1)
+    elif name == 'detr':
+        det_loss = []
+        num = 0
+        prob, labels = output['pred_logits'].softmax(dim=-1)[..., :-1].max(-1)
+        batch = prob.shape[0]
+        for i in range(batch):
+            bbox = output['pred_boxes'][i]
+            bboxes = to_iou_format(bbox, img_size)
+            label_boxes = lab_batch[i][:truths_length(lab_batch[i]), 1:]
+            label_boxes = to_iou_format(label_boxes, img_size)
+            ious = torchvision.ops.box_iou(bboxes.view(-1, 4).detach(),
+                                           label_boxes).squeeze(-1)
+            mask = ious.ge(iou_thresh)
+            mask = mask.logical_and(labels[i] == 1)
+            ious = ious[mask]
+            scores = prob[i][mask]
+            if len(ious) > 0:
+                if mode == 'max':
+                    _, ids = torch.max(ious, dim=0) # get the bbox w/ biggest iou compared to gt
+                    det_loss.append(scores[ids])
+                    num += 1
+        if len(det_loss) > 0:
+            det_loss = torch.stack(det_loss).mean()
+        return det_loss, min(num, 1)

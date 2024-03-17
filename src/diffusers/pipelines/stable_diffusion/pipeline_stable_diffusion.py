@@ -15,6 +15,7 @@
 import inspect
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional, Union
+from tqdm import tqdm
 
 import os
 import torch
@@ -269,12 +270,12 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         if adv_model == 'yolov7':
             pred = yolo(adv_imgs)
             loss, _ = compute_loss(pred[1][:3], targets_all[0].to(device))
-        elif adv_model in ('yolov3', 'yolov2'):
-            loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device), name=adv_model)
+        else:
+            loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device), name=adv_model, mode='max')
             if valid_num > 0:
                 loss = loss / valid_num
-        else:
-            raise ValueError('Adv model not supported!')
+            else:
+                loss = 0
         return loss
 
     def encode_prompt(
@@ -553,6 +554,14 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         latents = latents * self.scheduler.init_noise_sigma
         return latents
 
+    def next_data(self, adv_dataloader, pipeline):
+        next_iter = next(iter(adv_dataloader))  # targets, targets_padded
+        if pipeline == '3d':
+            imgs, targets_all = next_iter
+        elif pipeline == 'standard':
+            imgs, targets_all = next_iter[0], next_iter[1:]
+        return imgs, targets_all
+
     @replace_example_docstring(EXAMPLE_DOC_STRING)
     def __call__(
             self,
@@ -581,12 +590,15 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             self_guidance_precalculate_steps: int = 0,
             adv_guidance_scale: float = 1000.0,
             adv_batch_size: int = 0,
-            adv_model: str = "yolov3",
+            adv_model: str = "yolov2",
             adv_scale_schedule_dict: dict = dict(),
             adv_scale_schedule_type: str = "basic",
             save_every: int = -1,
             pipeline: str = '3d',
             need_self_attn: bool = False,
+            do_other: bool = False,
+            num_latent_opt_steps: int = 0,
+            latent_opt_scale: float = 1e4,
     ):
         r"""
         The call function to the pipeline for generation.
@@ -666,7 +678,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             prompt, height, width, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds
         )
         # versions of the detector
-        assert adv_model in ('yolov2', 'yolov3', 'yolov7')
+        assert adv_model in ('yolov2', 'yolov3', 'faster-rcnn', 'detr')
 
         # Directory for saves
         if save_every != -1:
@@ -786,7 +798,31 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                  clip_skip, 0.0, {}, True, 0, need_self_attn=need_self_attn)
 
         batch_idx = -1
+        if do_other: 
+            all_adv_losses = []
+            all_adv_losses_other = []
+            all_adv_grads = []
+            yolo_other = get_model(None, torch.device('cpu'), adv_model[:-1] + str(5 - int(adv_model[-1])))
+
+        if num_latent_opt_steps > 0:
+            print('Latent Optimization...')
+            for _ in tqdm(range(num_latent_opt_steps)):
+                latents = latents.detach().requires_grad_(True)
+                imgs, targets_all = self.next_data(adv_dataloader, pipeline)
+                batch_idx += 1
+                imgs = imgs.to(device, non_blocking=True)
+                adv_patch = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
+                adv_imgs, targets_padded = get_adv_imgs(adv_patch, pipeline, targets_all, tps, patch_transformer,
+                                                        patch_applier, imgs, renderer, batch_idx, adv_dataloader)
+
+                adv_loss = self.compute_adv_loss(adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded)
+                grads = torch.autograd.grad(latent_opt_scale * adv_loss, latents)
+
+                latents = self.scheduler.step(grads[0], timesteps[0], latents, **extra_step_kwargs, return_dict=False)[0]
+                torch.cuda.empty_cache()
+
         with self.progress_bar(total=num_inference_steps) as progress_bar:
+            print('Sampling Process...')
             for i, t in enumerate(timesteps):
                 # do_self_guidance = i < num_inference_steps * 13 // 16 and not save_attn_maps
                 # These guidances require gradient calculations
@@ -831,11 +867,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 
                 # Adversarial guidance
                 if do_adv:
-                    next_iter = next(iter(adv_dataloader))  # targets, targets_padded
-                    if pipeline == '3d':
-                        imgs, targets_all = next_iter
-                    elif pipeline == 'standard':
-                        imgs, targets_all = next_iter[0], next_iter[1:]
+                    imgs, targets_all = self.next_data(adv_dataloader, pipeline)
                     batch_idx += 1
                     imgs = imgs.to(device, non_blocking=True)
                     adv_patch = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
@@ -846,9 +878,15 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                                                             patch_applier, imgs, renderer, batch_idx, adv_dataloader)
 
                     adv_loss = self.compute_adv_loss(adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded)
+                    if adv_loss != 0:
+                        grads = torch.autograd.grad(adv_guidance_scale * adv_loss, latents)
+                        scaled_guidance_funcs.append(grads[0])
 
-                    grads = torch.autograd.grad(adv_guidance_scale * adv_loss, latents)
-                    scaled_guidance_funcs.append(grads[0])
+                    if do_other:
+                        adv_loss_other = self.compute_adv_loss(adv_model[:-1] + str(5 - int(adv_model[-1])), adv_imgs.detach().cpu(), compute_loss, yolo_other, targets_all.detach().cpu(), targets_padded.detach().cpu())
+                        all_adv_losses.append(adv_loss.item())
+                        all_adv_losses_other.append(adv_loss_other.item())
+                        all_adv_grads.append(torch.norm(grads[0].detach().cpu()).item())
 
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
@@ -876,6 +914,13 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     adv_guidance_scale = adv_scale_scheduler.step(i)
 
                 torch.cuda.empty_cache()
+        
+        if do_other:
+            import numpy as np
+            yolov = adv_model[-1]
+            np.save(f"losses{yolov}_{num_inference_steps}.npy", np.array(all_adv_losses))
+            np.save(f"other{yolov}_{num_inference_steps}.npy", np.array(all_adv_losses_other))
+            np.save(f"grads{yolov}_{num_inference_steps}.npy", np.array(all_adv_grads))
 
         if not output_type == "latent":
             image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]

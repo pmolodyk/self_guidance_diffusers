@@ -19,7 +19,7 @@ from tqdm import tqdm
 from torchvision import transforms
 from yolo2 import utils, load_data
 from yolov7.utils.general import check_file
-from yolov7.load_adv import get_model
+from ..load_target_model import get_model
 
 
 def truths_length(truths):
@@ -147,10 +147,10 @@ def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thr
 
 
 def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64, no_save_res=False):
+    assert net in ("yolov2", "yolov3", "faster-rcnn")
     with open(check_file('data/inria.yaml')) as f:
         data_dict = yaml.load(f, Loader=yaml.SafeLoader)  # data dict
-    darknet_model = get_model(data_dict, device, net)
-
+    darknet_model = get_model(data_dict, torch.device(device), net)
 
     img_size = 416  # standard for Inria
     transform = transforms.Compose(
@@ -186,12 +186,13 @@ def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64,
             split_path = img_path.split('/')
             path_to_yaml = '/'.join(split_path[:-1])
             patch_name = split_path[-1]
+            aps_name = "aps" if net == "yolov2" else f"aps_{net}"
             
-            if not os.path.isfile(f'{path_to_yaml}/aps.yaml'):
-                with open(f'{path_to_yaml}/aps.yaml', 'w') as f:
+            if not os.path.isfile(f'{path_to_yaml}/{aps_name}.yaml'):
+                with open(f'{path_to_yaml}/{aps_name}.yaml', 'w') as f:
                     f.write('aps:\n')
                     f.write('    none: 0')
-            with open(f'{path_to_yaml}/aps.yaml', 'r') as f:
+            with open(f'{path_to_yaml}/{aps_name}.yaml', 'r') as f:
                 calculated = yaml.load(f, Loader=yaml.SafeLoader)
             if patch_name in calculated['aps']:
                 res.append(calculated['aps'][patch_name])
@@ -208,34 +209,36 @@ def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64,
                                         pipeline='3d', device=device, net=net)
             res.append(ap)
             if not no_save_res:
-                with open(f'{path_to_yaml}/aps.yaml', 'a') as f:
+                with open(f'{path_to_yaml}/{aps_name}.yaml', 'a') as f:
                     f.write('\n')
                     f.write(f"    {patch_name}: " + '%.5f'% ap)
     return res
 
 
-def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0'):
-    with open(f'{load_path}/aps.yaml', 'r') as f:
+def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0', calc_ap=True, model_name=''):
+    assert model_name in ("yolov2", "yolov3", "faster-rcnn")
+    aps_name = "aps" if model_name == "yolov2" else f"aps_{model_name}"
+    with open(f'{load_path}/{aps_name}.yaml', 'r') as f:
         calculated = yaml.load(f, Loader=yaml.SafeLoader)
     
     img_paths = glob.glob(f'{load_path}/{mask}')
     print('Checking whether the APs are precalculated...')
     for img_path in tqdm(img_paths):
         patch_name = img_path.split('/')[-1]
-        if patch_name not in calculated['aps']:
+        if patch_name not in calculated['aps'] and calc_ap:
             get_save_aps(device, load_path, patch_name)
  
-    with open(f'{load_path}/aps.yaml', 'r') as f:
+    with open(f'{load_path}/{aps_name}.yaml', 'r') as f:
         calculated = yaml.load(f, Loader=yaml.SafeLoader)
     to_plot = []
 
     for img_path in img_paths:
         patch_name = img_path.split('/')[-1]
-        ap = calculated['aps'][patch_name]
+        ap = calculated['aps'][patch_name] if patch_name in calculated['aps'] else -1
         path_split = patch_name.split('_') 
         n = int(path_split[1])
         path_to = '/'.join(img_path.split('/')[:-1])
-        original_image = path_to + '/basic_' + str(n) + img_path.split('3d')[-1]
+        original_image = path_to + '/basic_' + str(n) + img_path.split('3d')[-1].replace("_yolov3", "").replace("_faster-rcnn", "")
         l2l = 0
         if met_cnt:
             if 'basic' in img_path:
@@ -252,39 +255,110 @@ def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0'):
         to_plot.append((ap, ys, img_path, n, l2l))
     return to_plot
 
-def plot_patches(to_plot, sort_key=lambda x: -float(x[-1]), ncols=5, title='ap'):
-    to_plot = sorted(to_plot, key=sort_key)
+
+def get_sg_coef(x):
+    patch_name = x[2].split('/')[-1].split('_')
+    if 'fx' not in patch_name and 'fa' not in patch_name:
+        return 0
+    if 'fx' in patch_name:
+        return float(patch_name[patch_name.index('fx') + 1])
+    return float(patch_name[patch_name.index('fa') - 1])
+    
+def get_fa_coef(x):
+    patch_name = x[2].split('/')[-1].split('_')
+    if 'fa' not in patch_name:
+        return 0
+    return float(patch_name[patch_name.index('fa') + 1]) * get_sg_coef(x)
+
+def get_lo_num(x):
+    patch_name = x[2].split('/')[-1].split('_')
+    if 'lo' not in patch_name:
+        return 0
+    return int(patch_name[patch_name.index('lo') + 1])
+
+def get_lo_coef(x):
+    patch_name = x[2].split('/')[-1].split('_')
+    if 'lo' not in patch_name:
+        return 0
+    return float(patch_name[patch_name.index('lo') + 2])
+
+def get_yolo_version(x):
+    patch_name = x[2].split('/')[-1].split('_')
+    if 'yolov3' in patch_name:
+        return 3
+    return 2
+
+def get_scheduler(x):
+    patch_name = x[2].split('/')[-1].split('_')
+    sched = " "
+    ind = 3
+    while ':' in patch_name[patch_name.index('adv') + ind]:
+        sched += patch_name[patch_name.index('adv') + ind] + '_'
+        ind += 1
+    return sched[:-1]
+
+def get_num_scheduler(x):
+    patch_name = x[2].split('/')[-1].split('_')
+    sched = []
+    ind = 3
+    while ':' in patch_name[patch_name.index('adv') + ind]:
+        sched += list(map(int, patch_name[patch_name.index('adv') + ind].split(':')))
+        ind += 1
+    return sched
+
+sort_dict = {
+    'l2': lambda x: -float(x[-1]),
+    'ap': lambda x: -float(x[0]),
+    'fx': get_sg_coef,
+    'fa': get_fa_coef,
+    'lon': get_lo_num,
+    'loc': get_lo_coef,
+    'yolov': get_yolo_version,
+    'sched': get_num_scheduler,
+}
+
+def get_sort_values(sort_key):
+    keys = sort_key.split('_')
+    return lambda x: tuple([sort_dict[key](x) for key in keys])
+
+def plot_patches(to_plot, sort_key='l2', ncols=5, title='ap'):
+    to_plot = sorted(to_plot, key=get_sort_values(sort_key))
     nrows = (len(to_plot) + ncols - 1) // ncols
     f, ax = plt.subplots(ncols=ncols, nrows=nrows, sharex=True, sharey=True, figsize=(3 * ncols + 1, len(to_plot) // ncols * 3 + 1))
-    f.tight_layout()
+    f.set_tight_layout(True)
+    # f.patch.set_visible(False)
     for r in range(nrows):
         for c in range(ncols):
+            ax[r, c].axis('off')
             if r * ncols + c >= len(to_plot):
                 f.delaxes(ax[r, c])
                 continue
-            ax[r, c].imshow(mpimg.imread(to_plot[r * ncols + c][2]))
+            cur_to_plot = to_plot[r * ncols + c]
+            img = cur_to_plot[2]
+            ax[r, c].imshow(mpimg.imread(img))
             ttl = ''
-            img_name = to_plot[r * ncols + c][2].split('/')[-1][:-4].split('_')
+            img_name = img.split('/')[-1][:-4].split('_')
             if 'ap' in title.split('_'):
-                ttl += str(to_plot[r * ncols + c][0]) + ' '
+                ttl += r"$\bf{" + '%.2f' % (100 * float(to_plot[r * ncols + c][0])) + "}$"
+            sg = None
+            if 'yolov' in title.split('_'):
+                ttl += ' v' + str(get_yolo_version(cur_to_plot))
             if 'fx' in title.split('_') or 'fa' in title.split('_'):
-                sg = None
                 if 'fa' in img_name:
                     sg = img_name[img_name.index('fa') - 1]
                 elif 'fx' in img_name:
                     sg = img_name[img_name.index('fx') + 1]
                 if sg:
-                    if float(sg) > 1:
-                        sg = int(float(sg))
-                    ttl += ' sg %.1E' % Decimal(sg)
+                    ttl += ' sg %.1E' % Decimal(float(sg))
             if 'fx' in title.split('_') and 'fx' in img_name:
                 ttl += ' fx'
             if 'fa' in title.split('_') and 'fa' in img_name:
                 fa_value = float(img_name[img_name.index('fa') + 1])
-                if fa_value != 1:
-                    ttl += ' fa_%.1E' % Decimal(fa_value)
-                else:
-                    ttl += ' fa'
+                ttl += ' fa_%.1E' % Decimal(fa_value * float(sg))
+            if 'lo' in title.split('_') and 'lo' in img_name:
+                ttl += ' lo_%d_%.1E' % (get_lo_num(cur_to_plot), get_lo_coef(cur_to_plot))
+            if 'sched' in title.split('_'):
+                ttl += ' ' + get_scheduler(cur_to_plot).replace('_', ' ')
             ax[r, c].title.set_text(ttl)
     plt.subplots_adjust(wspace=0, hspace=0.2)
     plt.savefig('tbd.png')
