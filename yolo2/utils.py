@@ -784,7 +784,8 @@ def get_det_loss(detector, p_img, lab_batch, name='yolov2', conf_thresh=0.01, io
     det_loss = p_img.new_zeros([])
     if name in ('yolov2', 'yolov3', 'faster-rcnn'):
         output = detector(p_img)
-        all_boxes = get_region_boxes_general(output, detector, conf_thresh=conf_thresh, name=name)
+        if name in ('yolov2', 'yolov3'):
+            all_boxes = get_region_boxes_general(output, detector, conf_thresh=conf_thresh, name=name)
     else:
         raise ValueError
 
@@ -819,4 +820,4 @@ def get_det_loss(detector, p_img, lab_batch, name='yolov2', conf_thresh=0.01, io
                     num += 1
         if len(det_loss) > 0:
             det_loss = torch.stack(det_loss).mean()
-        return det_loss, min(num, 0)
+        return det_loss, min(num, 1)

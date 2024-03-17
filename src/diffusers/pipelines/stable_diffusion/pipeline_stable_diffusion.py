@@ -878,7 +878,6 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                                                             patch_applier, imgs, renderer, batch_idx, adv_dataloader)
 
                     adv_loss = self.compute_adv_loss(adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded)
-
                     if adv_loss != 0:
                         grads = torch.autograd.grad(adv_guidance_scale * adv_loss, latents)
                         scaled_guidance_funcs.append(grads[0])
