@@ -61,7 +61,7 @@ for i in tqdm(range(n), total=n):
         if len(fa_text) > 1:
             name += f'_fx'
         if fat or fap:
-            name += f"_{data_dict['appearance_coef'][i]}"
+            name += f"_{float(data_dict['appearance_coef'][i])}"
         if fat:
             name += f'_fa_{att_weight}'
         if lo_steps[i] > 0:
