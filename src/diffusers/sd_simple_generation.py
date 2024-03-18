@@ -126,7 +126,7 @@ elif pargs.type == 'adv':
     if pargs.lo_steps > 0:
         name += f'_lo_{pargs.lo_steps}_{pargs.lo_coef}'
     name += f'_{pargs.pipeline}'
-    if pargs.adv_model in ('yolov2', 'yolov3'):
+    if pargs.adv_model in ('yolov2', 'yolov3', 'detr'):
         adv_bs = 12
     elif pargs.adv_model == 'faster-rcnn':
         adv_bs = 10
