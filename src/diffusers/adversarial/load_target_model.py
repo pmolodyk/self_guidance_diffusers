@@ -13,6 +13,7 @@ from yolo3.yolov3_models import YOLOv3Darknet
 from yolov7.utils.general import check_file, check_dataset
 from yolov7.utils.loss import ComputeLoss as ComputeLossv7
 from yolov7.data import load_data
+from mm.yolov3 import YOLOV3Detector
 
 from src.diffusers.adversarial.utils.yolo_dataset_utils import targets2padded
 from src.diffusers.rendering import RenderState
@@ -60,6 +61,16 @@ def get_dataloader(adv_batch_size, adv_model='yolov2', pipeline='3d'):
     return adv_dataloader, data_dict
 
 
+configs_mmdet = {
+    "yolov3-mmdet": {
+        "weight": "data/yolov3_d53_mstrain-416_273e_coco-2b60fcd9.pth",
+        "model": YOLOV3Detector,
+        "cfg": "mm/configs/yolov3_d53_mstrain-416_273e_coco.py",
+        "weights": "mm/yolov3_d53_mstrain-416_273e_coco-2b60fcd9.pth",
+        "weights_http": "https://download.openmmlab.com/mmdetection/v2.0/yolo/yolov3_d53_mstrain-416_273e_coco/yolov3_d53_mstrain-416_273e_coco-2b60fcd9.pth"
+    }
+}
+
 def get_model(data_dict, device, adv_model='yolov2'):
     if adv_model == 'yolov3':
         yolo = YOLOv3Darknet().to(device)
@@ -78,6 +89,17 @@ def get_model(data_dict, device, adv_model='yolov2'):
     elif adv_model == 'detr':
         yolo = torch.hub.load('facebookresearch/detr:main', 'detr_resnet50', 
                               pretrained=True).to(device)
+    elif adv_model == 'yolov3-mmdet':
+        from mmdet.apis import init_detector
+        m = configs_mmdet[adv_model]
+        model_type, cfg_file, weight = m["model"], m["cfg"], m["weights"]
+        cfg_options = dict(model=dict(type=model_type))
+        yolo = init_detector(
+            cfg_file,
+            weight,
+            device=device,
+            cfg_options=cfg_options,
+        )
     else:
         raise ValueError(f"No model named {adv_model}")
 

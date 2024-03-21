@@ -35,11 +35,7 @@ class Gradient:
         return tuple([r.item() for r in (self.op * ratio + self.ed * (1 - ratio)).int()])
 
 
-def get_draw_boxes(yolo, adv_img, draw, conf_thresh, name, grad0, grad1, fontc):
-    print('yolo running...')
-    output = yolo(adv_img.unsqueeze(0))
-    print('yolo finished')
-    
+def get_draw_boxes(output, yolo, adv_img, draw, conf_thresh, name, grad0, grad1, fontc):
     width = ToPILImage()(adv_img).width
     height = ToPILImage()(adv_img).height
 
@@ -52,14 +48,19 @@ def get_draw_boxes(yolo, adv_img, draw, conf_thresh, name, grad0, grad1, fontc):
     print(boxes[boxes[:, 6] == 0])
     for i in range(len(boxes)):
         box = boxes[i]
-        x1 = (box[0] - box[2] / 2.0) * width
-        y1 = (box[1] - box[3] / 2.0) * height
-        x2 = (box[0] + box[2] / 2.0) * width
-        y2 = (box[1] + box[3] / 2.0) * height
+        if False:
+            x1, y1, x2, y2 = box[:4] * width 
+        else:
+            x1 = (box[0] - box[2] / 2.0) * width
+            y1 = (box[1] - box[3] / 2.0) * height
+            x2 = (box[0] + box[2] / 2.0) * width
+            y2 = (box[1] + box[3] / 2.0) * height
+        print(x1.item(), x2.item(), y1.item(), y2.item())
 
         rgb = gradient()
         cls_id = box[6]
-        if cls_id == 0:
+        needed_cls = 0 
+        if cls_id == needed_cls:
             draw.rectangle([x1, y1, x2, y2], outline=rgb)
             back_text(draw, x1, y1, "%.3f" % (box[4]), backc=rgb, fontc=fontc)
 
@@ -70,8 +71,8 @@ def get_concat_h(im1, im2):
     return dst
 
 if __name__ == '__main__':
-    adv_batch_size = 24
-    device = 'cuda:7'
+    adv_batch_size = 1
+    device = 'cuda:3'
     adv_model = 'yolov3'
     img_size = 416
     pipeline = '3d'
@@ -86,7 +87,7 @@ if __name__ == '__main__':
     # for batch_idx, (data, _) in enumerate(trainloader):
     data = data.to(device, non_blocking=True)
     img_paths = ['patches/space_clothes_pattern/adv_256_7_0:4000_225:2000_3d_space_clothes_pattern.png'] #, 'patches/basic_75_grey_lady.png']
-    img_paths = ['patches/space_clothes_pattern/adv_256_7_0:10000_3d_yolov3_space_clothes_pattern.png'] #, 'patches/basic_75_grey_lady.png']
+    img_paths = ['patches/space_clothes_pattern/adv_256_7_0:5000_200:2000_lo_4_20000.0_3d_space_clothes_pattern.png'] #, 'patches/basic_75_grey_lady.png']
     # img_paths = ['process/29.png'] #, 'patches/basic_75_grey_lady.png']
     imgs = [PILToTensor()(Image.open(i)).unsqueeze(0) / 256 for i in img_paths]
     adv_patch = imgs[0].to(device)
@@ -111,6 +112,13 @@ if __name__ == '__main__':
     
     img1 = ToPILImage()(adv_imgs[ind])
     draw1 = ImageDraw.Draw(img1)
+    
+    img2 = ToPILImage()(adv_imgs[ind])
+    draw2 = ImageDraw.Draw(img2)
+
+    img3 = ToPILImage()(adv_imgs[ind])
+    draw3 = ImageDraw.Draw(img3)
+
 
     for i in range(len(boxes)):
         box = boxes[i]
@@ -124,12 +132,25 @@ if __name__ == '__main__':
         if cls_id == 0:
             draw.rectangle([x1, y1, x2, y2], outline=rgb)
             draw1.rectangle([x1, y1, x2, y2], outline=rgb)
+            draw2.rectangle([x1, y1, x2, y2], outline=rgb)
+            draw3.rectangle([x1, y1, x2, y2], outline=rgb)
             
     yolo2 = get_model(None, torch.device(device), 'yolov2')  # Yolo
-    get_draw_boxes(yolo2, adv_imgs[0], draw, conf_thresh, 'yolov2', torch.Tensor([255, 255, 255]), torch.Tensor([0, 0, 255]), (0, 0, 0))
-    
-    yolo3 = get_model(None, torch.device(device), 'yolov3')  # Yolo
-    get_draw_boxes(yolo3, adv_imgs[0], draw1, conf_thresh, 'yolov3', torch.Tensor([00, 0, 0]), torch.Tensor([0, 200, 0]), (255, 255, 255))
+    output = yolo2(adv_imgs[0].unsqueeze(0))
+    get_draw_boxes(output, yolo2, adv_imgs[0], draw, conf_thresh, 'yolov2', torch.Tensor([0, 0, 0]), torch.Tensor([0, 200, 0]), (255, 255, 255))
+
+    yolo3 = get_model(None, torch.device(device), 'yolov3-mmdet')  # Yolo
+    output = yolo3.forward_test(adv_imgs[0].unsqueeze(0))
+    # print(len(output), len(output[0]), output[0][0].shape, output[0][1].shape) 1,2,[70,5],[70,]
+    get_draw_boxes(output, yolo3, adv_imgs[0], draw1, conf_thresh, 'yolov3-mmdet', torch.Tensor([0, 0, 0]), torch.Tensor([0, 200, 0]), (255, 255, 255))
     # yolov3: [(bs, nboxes, 85=xywh_conf_classes), [maps x3]]
 
-    get_concat_h(img, img1).save('tbd.png')
+    faster_rcnn = get_model(None, torch.device(device), 'faster-rcnn')
+    output = faster_rcnn(adv_imgs[0].unsqueeze(0))
+    get_draw_boxes(output, faster_rcnn, adv_imgs[0], draw2, conf_thresh, 'faster-rcnn', torch.Tensor([0, 0, 0]), torch.Tensor([0, 200, 0]), (255, 255, 255))
+
+    detr = get_model(None, torch.device(device), 'detr')
+    output = detr(adv_imgs[0].unsqueeze(0))
+    get_draw_boxes(output, detr, adv_imgs[0], draw3, conf_thresh, 'detr', torch.Tensor([0, 0, 0]), torch.Tensor([0, 200, 0]), (255, 255, 255))
+    
+    get_concat_h(get_concat_h(img, img1), get_concat_h(img2, img3)).save('tbd.png')

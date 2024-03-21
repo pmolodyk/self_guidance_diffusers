@@ -80,7 +80,7 @@ def get_map_kernel(locations, faces_uvs_all, use_grids=True, bin_num=50, padded_
     collect = collect[collect[:, 0].argsort()]
     counts = torch.stack(counts, -1).sum(-1)
     max_num = counts.max().item()
-    print('max range is %.3f, max number of the bins is %d' % (max_range, max_num))
+    # print('max range is %.3f, max number of the bins is %d' % (max_range, max_num))
 
     ids = collect[:, 0]
     values = collect[:, 1]

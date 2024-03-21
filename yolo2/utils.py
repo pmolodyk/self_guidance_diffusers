@@ -412,6 +412,8 @@ def get_region_boxes_general(output, model, conf_thresh, name='yolov2', img_size
             boxes = boxes[boxes[:, 4] > conf_thresh]
             all_boxes.append(boxes)
     elif name == 'detr':
+        # output = output[0]
+        # print(output)
         bboxes = output['pred_boxes']
         scores, labels = output['pred_logits'].softmax(dim=-1)[..., :-1].max(-1)
         bboxes = torch.cat([bboxes, scores.unsqueeze(-1), scores.unsqueeze(-1), labels.unsqueeze(-1)-1], -1)
@@ -419,6 +421,11 @@ def get_region_boxes_general(output, model, conf_thresh, name='yolov2', img_size
         for boxes in bboxes:
             boxes = boxes[boxes[:, 4] > conf_thresh]
             all_boxes.append(boxes)
+    elif name == 'yolov3-mmdet':
+        all_boxes = [torch.concat((op[0], torch.zeros((op[1].shape[0], 1)).to(op[1].device), op[1].unsqueeze(-1)), -1) for op in output]
+        all_boxes = [boxes[boxes[:, 4] > conf_thresh] for boxes in all_boxes]
+        all_boxes = [torch.concat((((b[:, 0] + b[:, 2]) / 2)[:, None], ((b[:, 1] + b[:, 3]) / 2)[:, None], (b[:, 2] - b[:, 0])[:, None], (b[:, 3] - b[:, 1])[:, None], b[:, 4][:, None], b[:, 5][:, None], b[:, 6][:, None]), -1) for b in all_boxes]
+        return all_boxes
     else:
         raise ValueError
     if lab_filter is not None:
@@ -853,3 +860,16 @@ def get_det_loss(detector, p_img, lab_batch, name='yolov2', conf_thresh=0.01, io
         if len(det_loss) > 0:
             det_loss = torch.stack(det_loss).mean()
         return det_loss, min(num, 1)
+    elif name.endswith("mmdet"):
+        all_boxes = detector.forward_test(p_img)
+        boxes = [box[label == 0] for box, label in all_boxes]
+        raise NotImplementedError
+        criterion = DetectionLoss(
+            iou_thresh,
+            lambda obj, cls: obj,
+            reduction="mean_test",
+            loss_type="max_iou",
+        )
+        det_loss_list = criterion.forward(boxes, lab_batch)
+        det_loss = det_loss_list.mean()
+        return det_loss, 1
