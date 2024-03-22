@@ -13,7 +13,6 @@ from yolo3.yolov3_models import YOLOv3Darknet
 from yolov7.utils.general import check_file, check_dataset
 from yolov7.utils.loss import ComputeLoss as ComputeLossv7
 from yolov7.data import load_data
-from mm.yolov3 import YOLOV3Detector
 
 from src.diffusers.adversarial.utils.yolo_dataset_utils import targets2padded
 from src.diffusers.rendering import RenderState
@@ -59,19 +58,17 @@ def get_dataloader(adv_batch_size, adv_model='yolov2', pipeline='3d'):
     else:
         raise ValueError(f"Unknown pipeline {pipeline}")
     return adv_dataloader, data_dict
-
-
-configs_mmdet = {
-    "yolov3-mmdet": {
-        "weight": "data/yolov3_d53_mstrain-416_273e_coco-2b60fcd9.pth",
-        "model": YOLOV3Detector,
-        "cfg": "mm/configs/yolov3_d53_mstrain-416_273e_coco.py",
-        "weights": "mm/yolov3_d53_mstrain-416_273e_coco-2b60fcd9.pth",
-        "weights_http": "https://download.openmmlab.com/mmdetection/v2.0/yolo/yolov3_d53_mstrain-416_273e_coco/yolov3_d53_mstrain-416_273e_coco-2b60fcd9.pth"
-    }
-}
-
 def get_model(data_dict, device, adv_model='yolov2'):
+    if "mmdet" in adv_model:
+        from mm.yolov3 import YOLOV3Detector
+        configs_mmdet = {
+            "yolov3-mmdet": {
+                "model": YOLOV3Detector,
+                "cfg": "mm/configs/yolov3_d53_mstrain-416_273e_coco.py",
+                "weights": "mm/yolov3_d53_mstrain-416_273e_coco-2b60fcd9.pth",
+                "weights_http": "https://download.openmmlab.com/mmdetection/v2.0/yolo/yolov3_d53_mstrain-416_273e_coco/yolov3_d53_mstrain-416_273e_coco-2b60fcd9.pth"
+            }
+        }
     if adv_model == 'yolov3':
         yolo = YOLOv3Darknet().to(device)
         weights = 'data/yolov3.weights'
