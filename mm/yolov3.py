@@ -1,6 +1,5 @@
 from typing import Optional
 
-from mmengine.registry import MODELS
 from mmdet.models import YOLOV3, DETECTORS
 
 from .i_detector import IDetector

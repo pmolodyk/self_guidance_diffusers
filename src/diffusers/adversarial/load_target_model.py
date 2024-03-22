@@ -93,6 +93,7 @@ def get_model(data_dict, device, adv_model='yolov2'):
         from mmdet.apis import init_detector
         m = configs_mmdet[adv_model]
         model_type, cfg_file, weight = m["model"], m["cfg"], m["weights"]
+        attempt_download(weight, m["weights_http"], True)
         cfg_options = dict(model=dict(type=model_type))
         yolo = init_detector(
             cfg_file,
