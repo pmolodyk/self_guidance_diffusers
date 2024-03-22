@@ -167,7 +167,7 @@ def get_renderer(device, eval):
 
 
 def get_loss_fn(adv_model, yolo):
-    if adv_model in ('yolov2', 'yolov3', 'faster-rcnn', 'detr'):
+    if adv_model in ('yolov2', 'yolov3', 'faster-rcnn', 'detr', 'yolov3-mmdet'):
         return get_det_loss
     else:
         raise ValueError(f"invalid adv_model {adv_model}")

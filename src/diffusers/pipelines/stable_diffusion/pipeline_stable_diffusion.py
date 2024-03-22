@@ -678,7 +678,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             prompt, height, width, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds
         )
         # versions of the detector
-        assert adv_model in ('yolov2', 'yolov3', 'faster-rcnn', 'detr')
+        assert adv_model in ('yolov2', 'yolov3', 'faster-rcnn', 'detr', 'yolov3-mmdet')
 
         # Directory for saves
         if save_every != -1:

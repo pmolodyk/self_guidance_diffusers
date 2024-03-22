@@ -89,6 +89,34 @@ def bbox_ious(boxes1, boxes2, x1y1x2y2=True):
     return carea / uarea
 
 
+def bbox_ious_mmdet(boxes1, boxes2, _EPS=6e-8):
+    """Alternative is `mmdet.core.bbox.BboxOverlaps2D`.
+
+    Input boxes should be in x1y1x2y2 format."""
+
+    if boxes1.dim() == 1:
+        boxes1 = boxes1.unsqueeze(0)
+    assert boxes1.shape[-1] >= 4
+
+    if boxes2.dim() == 1:
+        boxes2 = boxes2.unsqueeze(0)
+    assert boxes2.shape[-1] >= 4
+
+    boxes1 = boxes1.unsqueeze(-2)  # B N 1 4
+    boxes2 = boxes2.unsqueeze(-3)  # B 1 M 4
+
+    top_left_i = torch.max(boxes1[..., :2], boxes2[..., :2])
+    bottom_right_i = torch.min(boxes1[..., 2:4], boxes2[..., 2:4])
+    size_i = torch.clamp_min(bottom_right_i - top_left_i, 0)
+    overlap = size_i[..., 0] * size_i[..., 1]
+    area1 = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
+    area2 = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
+    union = area1 + area2 - overlap
+    # union = union + _EPS
+    union = union.clamp_min(_EPS)
+    return overlap / union
+
+
 def bbox_iou_mat(boxes1, boxes2, x1y1x2y2=True):
     if boxes1.dim() == 1:
         boxes1 = boxes1.unsqueeze(0)
@@ -801,7 +829,7 @@ def get_det_loss(detector, p_img, lab_batch, name='yolov2', conf_thresh=0.01, io
         output = detector(p_img)
         if name in ('yolov2', 'yolov3'):
             all_boxes = get_region_boxes_general(output, detector, conf_thresh=conf_thresh, name=name)
-    else:
+    elif not name.endswith("mmdet"):
         raise ValueError
 
     if name in ('yolov2', 'yolov3'):
@@ -863,13 +891,41 @@ def get_det_loss(detector, p_img, lab_batch, name='yolov2', conf_thresh=0.01, io
     elif name.endswith("mmdet"):
         all_boxes = detector.forward_test(p_img)
         boxes = [box[label == 0] for box, label in all_boxes]
-        raise NotImplementedError
-        criterion = DetectionLoss(
-            iou_thresh,
-            lambda obj, cls: obj,
-            reduction="mean_test",
-            loss_type="max_iou",
-        )
-        det_loss_list = criterion.forward(boxes, lab_batch)
+        # raise NotImplementedError
+        obj_cls_loss = lambda obj, cls: obj
+        pad_zero = True
+        all_losses = []
+        for box, target in zip(boxes, lab_batch):
+            new_zero = lambda: torch.zeros(
+                (), device=box.device, requires_grad=box.requires_grad
+            )
+            if len(box) > 0 and len(target) > 0:
+                label_boxes = target[:truths_length(target), 1:]
+                label_boxes = to_iou_format(label_boxes, 1)
+                iou = bbox_ious_mmdet(box, label_boxes)
+                iou_max = iou.max(dim=1)[0]  # Select closest target
+                # Sift boxes that have a proper target
+                keep = iou_max > iou_thresh
+                valid_boxes = box[keep]
+                if valid_boxes.shape[1] > 5:
+                    det_confs = obj_cls_loss(valid_boxes[:, 4], valid_boxes[:, 5])
+                else:
+                    det_confs = valid_boxes[:, 4]
+                if len(det_confs) > 0:
+                    if mode == "max":
+                        # Used by Hu et al, 2023
+                        valid_iou_max = iou_max[keep]
+                        all_losses.append(det_confs[valid_iou_max.argmax()])
+                    else:
+                        raise ValueError(mode)
+                elif pad_zero:
+                    all_losses.append(new_zero())
+            elif pad_zero:
+                all_losses.append(new_zero())
+        if len(all_losses) > 0:
+            loss_vec = torch.stack(all_losses)
+            det_loss_list = loss_vec
+        else:
+            det_loss_list = torch.zeros(())
         det_loss = det_loss_list.mean()
         return det_loss, 1

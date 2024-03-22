@@ -88,6 +88,7 @@ if __name__ == '__main__':
     data = data.to(device, non_blocking=True)
     img_paths = ['patches/space_clothes_pattern/adv_256_7_0:4000_225:2000_3d_space_clothes_pattern.png'] #, 'patches/basic_75_grey_lady.png']
     img_paths = ['patches/space_clothes_pattern/adv_256_7_0:5000_200:2000_lo_4_20000.0_3d_space_clothes_pattern.png'] #, 'patches/basic_75_grey_lady.png']
+    img_paths = ['patches/colorful_cat_drawing/adv_256_7_2000_3d_yolov3-mmdet_colorful_cat_drawing.png'] #, 'patches/basic_75_grey_lady.png']
     # img_paths = ['process/29.png'] #, 'patches/basic_75_grey_lady.png']
     imgs = [PILToTensor()(Image.open(i)).unsqueeze(0) / 256 for i in img_paths]
     adv_patch = imgs[0].to(device)
