@@ -86,23 +86,24 @@ The transition between the spaces is possible with the use of a VAE with an enco
 That is, a real image $x$ can be translated into a latent vector $z$ in the latent space by applying the encoder $\mathcal{E}$ of this VAE, while the reverse process is carried out by the decoder $\mathcal{D}$: 
 $$z = \mathcal{E}(x), \Tilde{x} = \mathcal{D}(z)$$
 
-$\Tilde{x}$ is a reconstructed original image $x$. 
-During training of a SD, the weights of its VAE model are fixed.
+$\Tilde{x}$ is a reconstructed version of the original image $x$. 
+During the training of a SD model, the weights of its VAE model are fixed.
 
-The forward diffusion process gradually adds noise to our original latent $z$ in $T$ steps, and the model trains to predict the previous latent $z_{t-1}$ for all $z_t$.
+The forward diffusion process gradually adds noise to our original latent $z$ in $T$ steps, and the model trains to predict the previous latent $z_{t-1}$ for all $z_t$ in the reverse process.
 So, our SD is actually learning the original data distribution by learning how to reverse a fixed Markov Chain of length $T$.
 A denoising U-Net model $\epsilon_\theta$ is used to predict the noise that can be used to obtain $z_{t-1}$.
 The text prompt is included in the U-Net with help of cross-attention as shown on the picture: or conditioning $y$ is turned into its representation $\tau(y)$.
-% TODO should I include the loss function for SD?
+% TODO should I include the loss function for SD? YES, and more formulas on how the forward and backward processes look like!
 
 After training is completed, we obtain a U-Net model that can denoise our latents.
 During sampling, we take a prompt and an initial latent, be it random or somehow conditioned, and then run the trained U-Net for several iterations to denoise it, apply our decoder $\mathcal{D}$ and obtain our final image $\Tilde{x}$.
 Theoretically speaking, each iteration in the denoising sampling cycle improves our final result; in practice, however, for a simple generation without specific guidances, a relatively small number of iterations ($\lesssim 1e2$) is enough to obtain a meaningful realistic result.
-On the contrary, since generation is performed with a fixed scheduler, it is impossible to run the cycle for an infinite number of iterations without altering the sampling process of the given pretrained model.
+% todo cite relevant paper
+On the contrary, since generation is performed with a fixed scheduler, it is impossible to run the cycle for an infinite number of iterations without altering the sampling process of the given pre-trained model.
 
 \paragraph{Guidance}\label{sec:guidance}
 Apart from conditioning, there exist other methods that push the generation towards a particular desired direction.
-Let us formally describe guidance, a method that can be used to ensure that our generated image is not random in the space of all generations that satisfy the prompt, but rather is somehow altered.
+Let us formally describe guidance, a method that can be used to change the distribution from which the sampling will be done by sampling from a conditional distribution on every step of the process.
 Let us take a look at the update formula for the latents in the diffusion sampling cycle in the simplest form starting from $z_T \sim \mathcal{N}(0, 1)$:
 $$\hat\epsilon_t = \epsilon_\theta(z_t;t,y)$$
 
