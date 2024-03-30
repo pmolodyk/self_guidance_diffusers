@@ -25,7 +25,7 @@ from src.diffusers.rendering.light import LightSampler
 
 
 # Load Inria dataset
-def get_dataloader(adv_batch_size, adv_model='yolov2', pipeline='3d'):
+def get_dataloader(adv_batch_size, adv_model='yolov2', pipeline='3d', shuffle=True, drop_last=False):
     if adv_model != 'yolov2':
         warnings.warn(f"The dataset is customized for yolov2, but used {adv_model}")
     img_size = 416  # standard for Inria
@@ -34,8 +34,8 @@ def get_dataloader(adv_batch_size, adv_model='yolov2', pipeline='3d'):
             data_dict = yaml.load(f, Loader=yaml.SafeLoader)  # data dict
         check_dataset(data_dict, True)
         adv_dataset = load_data.InriaDataset(data_dict['train_data'], data_dict['train_labels'], img_size, shuffle=True)
-        adv_dataloader = torch.utils.data.DataLoader(adv_dataset, batch_size=adv_batch_size, shuffle=True, num_workers=8,
-                                                        collate_fn=load_data.collate_wo_max_label)
+        adv_dataloader = torch.utils.data.DataLoader(adv_dataset, batch_size=adv_batch_size, shuffle=shuffle, num_workers=8,
+                                                        collate_fn=load_data.collate_wo_max_label, drop_last=drop_last)
     elif pipeline == '3d':
         transform = T.Compose(
             [
@@ -50,9 +50,10 @@ def get_dataloader(adv_batch_size, adv_model='yolov2', pipeline='3d'):
         adv_dataloader = torch.utils.data.DataLoader(
             trainset,
             adv_batch_size,
-            True,
+            shuffle=shuffle,
             num_workers=10,
             pin_memory=True,
+            drop_last=drop_last
         )
         data_dict = None
     else:

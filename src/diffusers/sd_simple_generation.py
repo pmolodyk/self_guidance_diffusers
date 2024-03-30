@@ -29,6 +29,9 @@ parser.add_argument('--attention-weight', default=1, type=float, help='attention
 parser.add_argument('--pipeline', default='3d', type=str, help='standard|3d')
 parser.add_argument('--lo-steps', default=0, type=int, help='number of latent optimization steps')
 parser.add_argument('--lo-coef', default=1e4, type=float, help='latent optimization scale')
+parser.add_argument('--latents', default=None, type=str, help='latents_yolov2.pt')
+parser.add_argument('--latents-search-n', default=1, type=int, help='Number of random latents to iterate over')
+parser.add_argument('--latents-opt-mode', default=None, type=str, help='max|min')
 
 
 pargs = parser.parse_args()
@@ -40,7 +43,7 @@ torch.manual_seed(0)
 model_name = 'minisd'
 pipe = StableDiffusionPipeline.from_pretrained(os.getcwd() + f"/src/diffusers/{model_name}", safety_checker=None).to(device)
 
-batch_size = 1
+batch_size = pargs.latents_search_n
 num_channels_latents = pipe.unet.config.in_channels
 if model_name != 'minisd':
     height = pipe.unet.config.sample_size * pipe.vae_scale_factor
@@ -51,6 +54,11 @@ else:
 dtp = pipe.text_encoder.dtype
 default_generator = None
 
+latents = None
+latents_add = ""
+if pargs.latents is not None:
+    latents = torch.load(pargs.latents)
+    latents_add = "_latents_" + pargs.latents
 latents = pipe.prepare_latents(
             batch_size,
             num_channels_latents,
@@ -59,7 +67,7 @@ latents = pipe.prepare_latents(
             dtp,
             device,
             default_generator,
-            None,
+            latents=latents,
         )
 
 size_token_index = 2
@@ -126,6 +134,8 @@ elif pargs.type == 'adv':
     if pargs.lo_steps > 0:
         name += f'_lo_{pargs.lo_steps}_{pargs.lo_coef}'
     name += f'_{pargs.pipeline}'
+    if pargs.latents_opt_mode is not None:
+        name += f'_los_{batch_size}_{pargs.latents_opt_mode}'
     if pargs.adv_model in ('yolov2', 'yolov3', 'detr', 'yolov3-mmdet'):
         adv_bs = 12
     elif pargs.adv_model == 'faster-rcnn':
@@ -135,12 +145,14 @@ elif pargs.type == 'adv':
             adv_guidance_scale=adv_guidance_scale, adv_batch_size=adv_bs, adv_model=pargs.adv_model,
             guidance_scale=guidance_scale, save_every=save_every, adv_scale_schedule_dict=adv_scale_schedule_dict,
             adv_scale_schedule_type=pargs.scale_type, self_guidance_precalculate_steps=num_inference_steps,
-            pipeline=pargs.pipeline, num_latent_opt_steps=pargs.lo_steps, latent_opt_scale=pargs.lo_coef)
+            pipeline=pargs.pipeline, num_latent_opt_steps=pargs.lo_steps, latent_opt_scale=pargs.lo_coef,
+            latent_opt_mode=pargs.latents_opt_mode)
 else:
     raise ValueError(f"incorrect type {pargs.type}")
 
 if not pargs.adv_model.endswith('2'):
     name += f'_{pargs.adv_model}'
+name += latents_add
 print('name', name)
 
 out.images[0].show(title=name)

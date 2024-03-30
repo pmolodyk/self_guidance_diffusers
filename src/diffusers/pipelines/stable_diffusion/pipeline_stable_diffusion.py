@@ -37,6 +37,7 @@ from .safety_checker import StableDiffusionSafetyChecker
 
 from src.diffusers.adversarial.load_target_model import get_dataloader, get_model, get_adv_imgs, get_renderer, get_loss_fn
 from src.diffusers.adversarial.schedulers import get_scheduler
+from src.diffusers.adversarial.latent_optimization import latent_optimization
 from yolov7.data import load_data
 from yolov7.utils.torch_utils import TPSGridGen
 
@@ -599,6 +600,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             do_other: bool = False,
             num_latent_opt_steps: int = 0,
             latent_opt_scale: float = 1e4,
+            latent_opt_mode: Optional[str] = None,
     ):
         r"""
         The call function to the pipeline for generation.
@@ -733,24 +735,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
 
-        # 5. Prepare latent variables
-        num_channels_latents = self.unet.config.in_channels
-        latents = self.prepare_latents(
-            batch_size * num_images_per_prompt,
-            num_channels_latents,
-            height,
-            width,
-            prompt_embeds.dtype,
-            device,
-            generator,
-            latents,
-            do_self_guidance=do_self_guidance,
-        )
-
-        # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
-        extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
-
-        # 6.5 Prepare model & dataset for generating an adversarial patch
+        # 4.5 Prepare model & dataset for generating an adversarial patch
         if do_adv:
             adv_dataloader, _ = get_dataloader(adv_batch_size, pipeline=pipeline)  # Inria | Background
             yolo = get_model(None, device, adv_model)  # Yolo
@@ -767,6 +752,28 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 raise ValueError(f"Unknown pipeline {pipeline}")
             # Change adversarial guidance step with time
             adv_scale_scheduler = get_scheduler(adv_scale_schedule_type, adv_scale_schedule_dict, adv_guidance_scale, num_inference_steps)
+
+        # 5. Prepare latent variables
+        if latents.shape[0] != 1 and do_adv and latent_opt_mode is not None:
+            print(f'Latent optimization for {latents.shape[0]} samples...')
+            tmp_dataloader, _ = get_dataloader(adv_batch_size, pipeline=pipeline, shuffle=False, drop_last=True)
+            latents = latents[latent_optimization(adv_model, yolo, self, latents, tmp_dataloader, 
+                                                  device, pipeline, renderer, latent_opt_mode)][None]
+        num_channels_latents = self.unet.config.in_channels
+        latents = self.prepare_latents(
+            batch_size * num_images_per_prompt,
+            num_channels_latents,
+            height,
+            width,
+            prompt_embeds.dtype,
+            device,
+            generator,
+            latents,
+            do_self_guidance=do_self_guidance,
+        )
+
+        # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
+        extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
@@ -895,6 +902,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                     noise_pred_uncond = noise_pred
 
                 noise_pred = noise_pred_uncond + sum(scaled_guidance_funcs)
+                # noise_pred = sum(scaled_guidance_funcs)  # AAAAAAAAAAAAAAAAAA
 
                 if do_classifier_free_guidance and guidance_rescale > 0.0:
                     # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
@@ -922,6 +930,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             np.save(f"other{yolov}_{num_inference_steps}.npy", np.array(all_adv_losses_other))
             np.save(f"grads{yolov}_{num_inference_steps}.npy", np.array(all_adv_grads))
 
+        # torch.save(latents.detach().cpu(), f"basic_latent_{adv_model}.pt")
+        # 1/0
         if not output_type == "latent":
             image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
             image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
