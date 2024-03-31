@@ -211,6 +211,7 @@ def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64,
             prec, rec, ap, confs = test(darknet_model, loader, adv_patch=test_patch, conf_thresh=0.01, old_fasion=True,
                                         pipeline='3d', device=device, net=net)
             res.append(ap)
+            print(f'Saving results to {path_to_yaml}/{aps_name}.yaml')
             if not no_save_res:
                 with open(f'{path_to_yaml}/{aps_name}.yaml', 'a') as f:
                     f.write('\n')
@@ -241,7 +242,7 @@ def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0', calc_ap=
         path_split = patch_name.split('_') 
         n = int(path_split[1])
         path_to = '/'.join(img_path.split('/')[:-1])
-        original_image = path_to + '/basic_' + str(n) + img_path.split('3d')[-1].replace("_yolov3", "").replace("_faster-rcnn", "").replace("_detr", "").replace("-mmdet", "")
+        original_image = path_to + '/basic_' + str(n) + '_' + load_path.split('/')[-1] + '.png'
         l2l = 0
         if met_cnt:
             if 'basic' in img_path:
@@ -309,6 +310,14 @@ def get_num_scheduler(x):
         ind += 1
     return sched
 
+def get_los_num(x):
+    patch_name = x[2].split('/')[-1].split('_')
+    if 'los' not in patch_name:
+        return 0
+    else:
+        ii = patch_name.index('los')
+        return patch_name[ii + 2]
+
 sort_dict = {
     'l2': lambda x: -float(x[-1]),
     'ap': lambda x: -float(x[0]),
@@ -318,6 +327,8 @@ sort_dict = {
     'loc': get_lo_coef,
     'yolov': get_yolo_version,
     'sched': get_num_scheduler,
+    'type': lambda to_plt: to_plt[2].split('/')[-1].split('_')[0],
+    'los': get_los_num,
 }
 
 def get_sort_values(sort_key):
@@ -362,6 +373,8 @@ def plot_patches(to_plot, sort_key='l2', ncols=5, title='ap'):
                 ttl += ' lo_%d_%.1E' % (get_lo_num(cur_to_plot), get_lo_coef(cur_to_plot))
             if 'sched' in title.split('_'):
                 ttl += ' ' + get_scheduler(cur_to_plot).replace('_', ' ')
+            if 'los' in title.split('_'):
+                ttl += ' los ' + get_los_num(cur_to_plot)
             ax[r, c].title.set_text(ttl)
     plt.subplots_adjust(wspace=0, hspace=0.2)
     plt.savefig('tbd.png')

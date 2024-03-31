@@ -31,7 +31,7 @@ parser.add_argument('--lo-steps', default=0, type=int, help='number of latent op
 parser.add_argument('--lo-coef', default=1e4, type=float, help='latent optimization scale')
 parser.add_argument('--latents', default=None, type=str, help='latents_yolov2.pt')
 parser.add_argument('--latents-search-n', default=1, type=int, help='Number of random latents to iterate over')
-parser.add_argument('--latents-opt-mode', default=None, type=str, help='max|min')
+parser.add_argument('--latents-opt-mode', default=None, type=str, help='max|min|0...l-s-n')
 
 
 pargs = parser.parse_args()
@@ -87,6 +87,7 @@ self_guidance_scale = pargs.self_guidance_scale
 save_every = pargs.save_every
 if pargs.type == 'standard':
     print('Standard pipe')
+    name = f'basic_{num_inference_steps}'
     additional_pargs = dict()
     if len(pargs.input_image) > 1:
         img = Image.open("test.jpg")
@@ -94,11 +95,12 @@ if pargs.type == 'standard':
         if img_t.shape[1] == 1:
             img_t = img_t.repeat(1, 3, 1, 1)
         latents = pipe.vae.encoder(img_t)
-        additional_pargs['latents'] = latents
+    elif batch_size > 1:
+        latents = latents[int(pargs.latents_opt_mode)].unsqueeze(0) 
+        name += f'_los_{batch_size}_{pargs.latents_opt_mode}'
 
     out = pipe(height=height, width=width, prompt=prompt, latents=latents,
-               num_inference_steps=num_inference_steps, save_every=save_every, *additional_pargs)
-    name = f'basic_{num_inference_steps}'
+               num_inference_steps=num_inference_steps, save_every=save_every)
 elif pargs.type == 'self':
     print('Self-guided pipe')
     pos = torch.tensor([10.10, 10.10]).to(device)
@@ -134,6 +136,9 @@ elif pargs.type == 'adv':
     if pargs.lo_steps > 0:
         name += f'_lo_{pargs.lo_steps}_{pargs.lo_coef}'
     name += f'_{pargs.pipeline}'
+    if not pargs.adv_model.endswith('2'):
+        name += f'_{pargs.adv_model}'
+    name += latents_add
     if pargs.latents_opt_mode is not None:
         name += f'_los_{batch_size}_{pargs.latents_opt_mode}'
     if pargs.adv_model in ('yolov2', 'yolov3', 'detr', 'yolov3-mmdet'):
@@ -150,9 +155,6 @@ elif pargs.type == 'adv':
 else:
     raise ValueError(f"incorrect type {pargs.type}")
 
-if not pargs.adv_model.endswith('2'):
-    name += f'_{pargs.adv_model}'
-name += latents_add
 print('name', name)
 
 out.images[0].show(title=name)
