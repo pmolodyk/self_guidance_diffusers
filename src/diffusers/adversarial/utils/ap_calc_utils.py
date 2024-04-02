@@ -191,6 +191,7 @@ def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64,
             patch_name = split_path[-1]
             aps_name = "aps" if net == "yolov2" else f"aps_{net}"
             
+            print('storage yaml', f'{path_to_yaml}/{aps_name}.yaml')
             if not os.path.isfile(f'{path_to_yaml}/{aps_name}.yaml'):
                 with open(f'{path_to_yaml}/{aps_name}.yaml', 'w') as f:
                     f.write('aps:\n')

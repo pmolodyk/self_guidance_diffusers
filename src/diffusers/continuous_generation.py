@@ -23,6 +23,11 @@ fat = data_dict['fix_attention']
 adv_model = data_dict['adv_model']
 lo_steps = data_dict['lo_steps'] if 'lo_steps' in data_dict else [0] * n
 lo_coef = data_dict['lo_coef'] if int(lo_steps[0]) > 0 else [0] * n
+latents_search_n = data_dict['latents_search_n'] if 'latents_search_n' in data_dict else 1
+if latents_search_n != 1:
+    latents_opt_mode = data_dict['latents_opt_mode']
+    if not isinstance(latents_opt_mode, list):
+        latents_opt_mode = [latents_opt_mode] * n
 
 if data_dict['check_free']:
     check_free([data_dict['server_name']], [int(device[-1])])
@@ -50,8 +55,11 @@ for i in tqdm(range(n), total=n):
     lo_text = ""
     if lo_steps[i] > 0:
         lo_text = f"--lo-steps {lo_steps[i]} --lo-coef {lo_coef[i]}"
+    ls_text = ""
+    if latents_search_n > 1:
+        ls_text = f"--latents-search-n {latents_search_n} --latents-opt-mode {latents_opt_mode[i]}"
 
-    cmd = f'python -m src.diffusers.sd_simple_generation --adv-coef "{dct}" --adv-model "{adv_model}" --type adv --steps {steps} --device {device} --prompt "{prompt}" --guidance-scale {gsc} {fa_text} {lo_text}'
+    cmd = f'python -m src.diffusers.sd_simple_generation --adv-coef "{dct}" --adv-model "{adv_model}" --type adv --steps {steps} --device {device} --prompt "{prompt}" --guidance-scale {gsc} {fa_text} {lo_text} {ls_text}'
     print(cmd)
     os.system(cmd)
 
@@ -69,6 +77,8 @@ for i in tqdm(range(n), total=n):
         name += '_3d'
         if not adv_model.endswith('2'):
             name += f'_{adv_model}'
+        if latents_search_n > 1:
+            name += f'_los_{latents_search_n}_{latents_opt_mode[i]}'
         patch_path = f'patches/{"_".join(prompt.split())}'
         patch_name = f'{name}_{prompt.replace(" ", "_")}.png'
         print('patch_path:', patch_path)
