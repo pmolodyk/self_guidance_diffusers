@@ -6,45 +6,44 @@
 
 As we have established previously, it is difficult to control the generated adversarial patterns with existing methods. 
 By control here we mean a possibility to lead our generation to a particular direction according to the attacker's will, thus being able to generate a wide range of possible patterns.
-So, the main idea of our methodology is to use the remarkable generative abilities of diffusion models to produce natural-looking adversarial clothes.
-Moreover, since we want our method to be zero-shot, that is, to use pretrained models only, ideally, we would like to be able to use the DM to find a trajectory that would lead us to adversarial samples hidden inside the areas of distribution of natural-looking images.
-Here, trajectory denotes the denoising path the DM choses when gradually producing the final result starting from random noise. 
-So, we would like to be able to change the default generation trajectory of our DM to push it towards enhancing the adversarial effects of the image.
+So, the main idea of our methodology is to use the remarkable generative abilities of diffusion models (DM) to produce natural-looking adversarial clothes.
+Moreover, since we want our method to be zero-shot, that is, to use pre-trained models only, ideally, we would like to be able to use the DM to find a trajectory that would lead us to adversarial samples hidden inside the areas of distribution of natural-looking images.
+Here, a trajectory is the denoising path the DM choses when producing the final result starting from random noise. 
+So, we would like to be able to change the default generation trajectory of our DM to push it towards enhancing the adversarial effects of the image. DMs are well known for being controllable by mechanisms of attention (e.g. text-conditional generation, implemented in Stable Diffusion)
+% todo cite SD paper
+ and guidance (e.g. classifier guidance).
+% todo cite classifier guidance paper
+Therefore, we aim to create a controllable adversarial generation pipeline by modifying the DM sampling process while retaining the DM's natural controllability.
 % todo more 
 
 \section{Pipeline}
 \subsection{Introduction: Quick Overview}
 
 We have two models involved in the pipeline: a diffusion model and a detector model.
-As input, we receive a prompt from the user, and as output, we have to generate adversarial clothes with a pattern as close to the original generation of our stable diffusion model as possible.
-Again, in our case, adversarial means that the clothes can help to avoid being detected altogether instead of just making the detector assign an incorrect class to the detected bbox.
-At the same time, we also need to ensure that the generated pattern is still effective in the physical world, since our ultimate goal is to be able to print the clothes, put them on and demonstrate how they can be used to avoid detection systems.
+As input, we receive a prompt from the user, and generate adversarial clothes with a pattern as close to the original generation of our stable diffusion model as possible as an output.
+Again, in our case, adversarial means that the clothes can help avoid detection altogether instead of just making the detector assign an incorrect class to the detected bbox.
+At the same time, we also need to ensure that the generated pattern is still effective in the physical world, since our ultimate goal is to be able to print the clothes, put them on and demonstrate how they can be used to avoid detection systems. This means that we need to take special measures so that the patch retains its adversarial nature when deformed and partially obscured in a real-world environment.
 
-First, we generate a latent that would correspond to the input image according to our diffusion model.
-This latent can be either random or somehow modified according to the user's wishes. 
-Again, one of the main advantages of our method is that, unlike other methods, it is able to trade adversarial effectiveness off in order to create natural-looking patches that can be controlled by the user with the use of prompt and initial conditioning, which is the chosen latent, our starting point in the noise distribution.
-It is essential that the prompt makes sense according to whatever the user is trying to generate.
-That is, even if the user was to only provide the initial latent, they still need to ensure that the prompt does not contradict the task, and rather help to push the generation into the right direction.
+First we generate a latent vector that would be used as input for the DM. This vector can be either random or selected by a diffusion inversion method to replicate a user-selected image.
+% todo cite diffusion inversion paper 
+Again, one of the main advantages of our method is that, unlike other methods, it is able to trade off adversarial effectiveness for more natural-looking patches that can be controlled by the user with the use of the prompt and initial conditioning, which is the chosen latent, our starting point in the noise distribution.
+If the user is providing a latent vector that to generate a specific image, it is also necessary to provide a prompt that corresponds to that image. Many models exist that can reverse-engineer a prompt given the input image, the choice of such model is out of the scope of this work.
+% todo cite prompt reverse-engineering
+After that, we modify the sampling process of the diffusion model, adding ``detection guidance'' to the update in order to ensure that our patch helps us avoid the detector.
+In order to obtain this ``detection guidance'' on each step of the sampling process, we need to generate an intermediate image by applying a VAE on the latent space and then simulating a real-life scenario of a person wearing clothes with the generated patch. We then run the detector on the created image, calculate the detection confidence and use the resulting gradient to guide the sampling process. We implemented 2 methods of scenario simulation: a simple 2d pasting algorithm and a more complex 3d-generated scene creator. We will describe both methods in detail in later sections.
 
-After that, we modify the sampling process of the diffusion model, adding ``detector guidance'' to the update in order to ensure that our patch helps us avoid the detector.
-In order to obtain this ``detection guidance'', we unfold the latents into the corresponding patch and create clothes that are used in a chosen pipeline to estimate the efficiency of our detector, and change the update direction based on the detector's output.
-Here, we have used two types of pipelines for calculating detection guidance: 2D and 3D.
-
-Other guidances, like the ``fixation guidance'', are also used to ensure the naturalness of our final generation.
-
-In the end, we once again obtain the final image from the latents and make adversarial clothes out of them using the same strategy.
+We later show that this ``detection guidance'', when used by itself, creates images that are visually jarring and are far by l1-norm from the image, produced by the default sampling. To counter this, we implement other guidance methods, such as ``appearance constraint guidance''. We show that these methods combined yield much better images, and provide us with a valuable instrument of trade-off between the adversarial effectiveness and visual quality of the resulting patch, which we can use by selecting the relative weights of the corresponding guidance gradients.
 
 \subsection{Models}
 
-In order to understand the pipeline in more detail, first, we need to look at the component parts closely.
+In order to understand the pipeline in more detail, first, we need to look at the components closely.
 
-Two models are used in this pipeline: a Stable Diffusion model (SD) for generating the patch, and a YOLOv2 model (YOLO) to ensure that the generated patch is adversarial with respect to detection.
+Two models are used in this pipeline: a Stable Diffusion model (SD) for generating the patch, and a detector model (we test our method with YOLOv2, YOLOv3 (YOLO), fasterRCNN and mmdet) to ensure that the generated patch is adversarial with respect to detection.
 Naturally, it is also possible to choose other diffusion and detection models.
-We stopped at SD mainly because of its speed and large variety of results, while YOLO was chosen to compare against other baselines as one of the most widely used models.
-
 All weights of the models involved in the process are frozen, but the latents that are used and optimized by the SD have their gradients unlocked in order to enable adversarial guidance.
 
 \subsubsection{Stable Diffusion}
+Stable Diffusion (SD) is a standard benchmark for text-conditioned image generation. It is a decently fast DM with a variety of pre-trained models widely available. We used 2 versions of the model, MiniSD, which generated images 420x420, and a default SD distribution with a resolution 512x512.
 % TODO details on SD
 
 \begin{figure}[ht!]
@@ -54,24 +53,22 @@ All weights of the models involved in the process are frozen, but the latents th
 \label{sd_generation_example}
 \end{figure}
 
-\paragraph{Introduction} On a high level of understanding, a pretrained SD model, just like any other DM, generates trajectories from the noisy space to the meaningful for us humans space by gradually removing noise from this random starting point. 
+\paragraph{Introduction} A pre-trained SD model, just like any other DM, generates trajectories from the noise distribution to the distribution of meaningful for us humans images by gradually removing noise from this random starting point.
+% todo rephrase
 Figure~\ref{sd_generation_example} demonstrates three examples for such trajectories for the SD model that was used in this work.
 The prompt is fixed for all these examples: ``A beautiful goldfish swimming through the ocean''.
 The first column depicts three random noises that were used as starting points for the corresponding three trajectories that show the denoising process.
-In this process, as we look at the pictures in each row from left to right, we observe the model gradually remove the noise to arrive at different finishing points. 
+In this process, as we look at the pictures in each row from left to right, we observe the model gradually removing the noise to arrive at different finishing points.
 All three final generations in the last column, however, satisfy our conditioning requirement, which is the given prompt.
 
-So, during the training process of a DM, noise is added to input images, and the main part of the model, normally its U-Net component, is training to predict the noise that was added at each step.
-That way, during sampling, we are able to use this pretrained U-Net to go in the opposite direction of removing noise. 
+The actual diffusion process happens in the latent space, and the transition to the image space is only made on the last stage using a decoder model.
+During the training process of a DM, the training images are encoded to the latent space, and then noise is gradually added to the latent in a Markov-Chain (forward diffusion process), and then the image is reconstructed in the reverse (backward) diffusion process. This is done by training a U-Net model to predict the noise components on every step, thus simulating the reverse Markov-Chain process.
+% todo add formulas from diffusion papers
+Thus later, in inference, during sampling, we can use this trained U-Net to perform the backward diffusion, starting from an arbitrary latent vector, to generate an image.
 
-Another important part of the process is conditioning, which in case of a SD model is usually added in the form of a text prompt, or more rarely a semantic map.
-The conditioning is inserted into the U-Net with the use of attention, and the text itself is encoded with a CLIP model. 
+An important part of the process is conditioning, which in case of a SD model is added in the form of a text prompt, or more rarely a semantic map. The text is encoded using the CLIP model and incorporated into the latent vector via cross-attention mechanisms.
 
-Finally, a SD model is a latent diffusion model. 
-Since we often want to work with large images that might take too much GPU memory, this class of models works on optimization in a latent space instead of the original pixel space of actual images. 
-In order to work in this space, however, we have to be able to go into the space and leave it at will.
-Typically, a Variational AutoEncoder (VAE) model is used for this purpose: its encoder allows the transition into the latent space, while its decoder returns latents to the corresponding images in the real pixel space.
-
+The encoder-decoder pair is typically a Variational Autoencoder (VAE): its encoder allows the transition into the latent space during training, while its decoder returns latents to the corresponding images in the pixel space.
 
 
 \begin{figure}[ht!]
@@ -81,31 +78,32 @@ Typically, a Variational AutoEncoder (VAE) model is used for this purpose: its e
 \label{sd}
 \end{figure}
 
-\paragraph{Formalization} Now, let us turn to a little more low-level explanation with formulas and illustrations.
+\paragraph{Formalization}
 
 Figure~\ref{sd} depicts the pipeline in the scheme from the original paper~\cite{stable_dif}.
 The leftmost red part indicates the pixel space with real images, and the green part---the training process that is happening in the latent space.
-The transitioning between the spaces is possible with the use of a VAE with encoder $\mathcal{E}$ and decoder $\mathcal{D}$.
-That is, a real image $x$ can be translated into a latent $z$ in the latent space by applying the encoder $\mathcal{E}$ of this VAE, while the reverse process is carried with the decoder $\mathcal{D}$: 
+The transition between the spaces is possible with the use of a VAE with an encoder $\mathcal{E}$ and decoder $\mathcal{D}$.
+That is, a real image $x$ can be translated into a latent vector $z$ in the latent space by applying the encoder $\mathcal{E}$ of this VAE, while the reverse process is carried out by the decoder $\mathcal{D}$: 
 $$z = \mathcal{E}(x), \Tilde{x} = \mathcal{D}(z)$$
 
-$\Tilde{x}$ is a reconstructed original image $x$. 
-During training of a SD, the weights of its VAE model are fixed.
+$\Tilde{x}$ is a reconstructed version of the original image $x$. 
+During the training of a SD model, the weights of its VAE model are fixed.
 
-The forward diffusion process gradually adds noise to our original latent $z$ in $T$ steps, and the model trains to predict the previous latent $z_{t-1}$ for all $z_t$.
+The forward diffusion process gradually adds noise to our original latent $z$ in $T$ steps, and the model trains to predict the previous latent $z_{t-1}$ for all $z_t$ in the reverse process.
 So, our SD is actually learning the original data distribution by learning how to reverse a fixed Markov Chain of length $T$.
 A denoising U-Net model $\epsilon_\theta$ is used to predict the noise that can be used to obtain $z_{t-1}$.
 The text prompt is included in the U-Net with help of cross-attention as shown on the picture: or conditioning $y$ is turned into its representation $\tau(y)$.
-% TODO should I include the loss function for SD?
+% TODO should I include the loss function for SD? YES, and more formulas on how the forward and backward processes look like!
 
 After training is completed, we obtain a U-Net model that can denoise our latents.
 During sampling, we take a prompt and an initial latent, be it random or somehow conditioned, and then run the trained U-Net for several iterations to denoise it, apply our decoder $\mathcal{D}$ and obtain our final image $\Tilde{x}$.
 Theoretically speaking, each iteration in the denoising sampling cycle improves our final result; in practice, however, for a simple generation without specific guidances, a relatively small number of iterations ($\lesssim 1e2$) is enough to obtain a meaningful realistic result.
-On the contrary, since generation is performed with a fixed scheduler, it is impossible to run the cycle for an infinite number of iterations without altering the sampling process of the given pretrained model.
+% todo cite relevant paper
+On the contrary, since generation is performed with a fixed scheduler, it is impossible to run the cycle for an infinite number of iterations without altering the sampling process of the given pre-trained model.
 
 \paragraph{Guidance}\label{sec:guidance}
 Apart from conditioning, there exist other methods that push the generation towards a particular desired direction.
-Let us formally describe guidance, a method that can be used to ensure that our generated image is not random in the space of all generations that satisfy the prompt, but rather is somehow altered.
+Let us formally describe guidance, a method that can be used to change the distribution from which the sampling will be done by sampling from a conditional distribution on every step of the process.
 Let us take a look at the update formula for the latents in the diffusion sampling cycle in the simplest form starting from $z_T \sim \mathcal{N}(0, 1)$:
 $$\hat\epsilon_t = \epsilon_\theta(z_t;t,y)$$
 

@@ -13,12 +13,14 @@ def latent_optimization(adv_model, detector, pipe, latents, adv_dataloader, devi
     N, c_l, h_l, w_l = latents.shape
     assert c_l == 4 and h_l == 32 and w_l == 32
     assert pipeline == '3d'
-    assert mode in modes.keys()
+    assert mode in modes.keys() or mode.isnumeric()
 
     l2s_name = f"{adv_model}_los_{latents.shape[0]}.pt"
     if os.path.exists(l2s_name):
         l2s = torch.load(l2s_name)
         return modes[mode](l2s.mean(-1)).item()
+    elif mode.isnumeric():
+        return int(mode)
 
     no_resamlping = 0  # so that there is no resampling in rendering
     
