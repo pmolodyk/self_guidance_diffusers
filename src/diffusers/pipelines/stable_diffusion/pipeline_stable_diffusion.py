@@ -921,7 +921,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 if do_adv:
                     adv_guidance_scale = adv_scale_scheduler.step(i)
 
-                torch.cuda.empty_cache()
+                # torch.cuda.empty_cache()
         
         if do_other:
             import numpy as np

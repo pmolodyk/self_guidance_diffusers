@@ -11,4 +11,5 @@ parser.add_argument('--mask', type=str, default=None, help='ex: adv_500*')
 parser.add_argument('--no-save-res', default=False, action='store_true', help='')
 pargs = parser.parse_args()
 
-get_save_aps(pargs.device, pargs.load_path, pargs.mask, pargs.net, pargs.batch_size, pargs.no_save_res)
+get_save_aps(pargs.device, pargs.load_path, pargs.mask, pargs.net, pargs.batch_size, 
+             pargs.no_save_res)

@@ -40,6 +40,7 @@ device = pargs.device
 num_inference_steps = int(pargs.steps)
 torch.manual_seed(0)
 
+model_name = 'model'
 model_name = 'minisd'
 pipe = StableDiffusionPipeline.from_pretrained(os.getcwd() + f"/src/diffusers/{model_name}", safety_checker=None).to(device)
 
@@ -144,7 +145,7 @@ elif pargs.type == 'adv':
     if pargs.adv_model in ('yolov2', 'yolov3', 'detr', 'yolov3-mmdet'):
         adv_bs = 12
     elif pargs.adv_model == 'faster-rcnn':
-        adv_bs = 10
+        adv_bs = 9
     out = pipe(height=height, width=width, prompt=prompt, self_guidance_dict=self_guidance_dict, latents=latents,
             num_inference_steps=num_inference_steps, self_guidance_scale=self_guidance_scale, 
             adv_guidance_scale=adv_guidance_scale, adv_batch_size=adv_bs, adv_model=pargs.adv_model,

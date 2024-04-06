@@ -39,8 +39,9 @@ def label_filter(truths, labels=None):
         return new_truths
 
 
-def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thresh=0.5, num_of_samples=100,
-         old_fasion=True, pipeline='3d', num_samples=18, device='cuda:0', net='yolov2', img_size=416):
+def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thresh=0.5, 
+         num_of_samples=100, old_fasion=True, pipeline='3d', num_samples=18, device='cuda:0', 
+         net='yolov2', img_size=416, asr_conf=0.5):
     model.eval()
     total = 0.0
     rend = pipeline == '3d'
@@ -55,6 +56,8 @@ def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thr
         renderer.lights = renderer.light_sampler.sample(0)
     with torch.no_grad():
         positives = []
+        asr_cnt = 0
+        img_cnt = 0
         for batch_idx, (data, target) in tqdm(enumerate(loader), total=len(loader)):
             data = data.to(device)
             if adv_patch is not None:
@@ -87,9 +90,9 @@ def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thr
                 else:
                     output = model(data_render)
                 all_boxes = utils.get_region_boxes_general(output, model, conf_thresh, net)
-                for i in range(len(all_boxes)):
+                for i in range(len(all_boxes)):  # for all images
                     boxes = all_boxes[i]
-                    boxes = utils.nms(boxes, nms_thresh)
+                    boxes = utils.nms(boxes, nms_thresh)  # we suppress bboxes that are too close
 
                     truths = target[i].view(-1, 5)
                     truths = label_filter(truths, labels=[0])
@@ -97,6 +100,7 @@ def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thr
                     truths = truths[:num_gts, 1:]
                     truths = truths.tolist()
                     total = total + num_gts
+                    asr_fails = 0
                     for j in range(len(boxes)):
                         if boxes[j][6].item() == 0:
                             best_iou = 0
@@ -107,11 +111,15 @@ def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thr
                                 if iou > best_iou:
                                     best_iou = iou
                                     best_index = ib
-                            if best_iou > iou_thresh:
-                                del truths[best_index]
+                            if best_iou > iou_thresh:  # find the best gt match acc to iou
+                                del truths[best_index] 
                                 positives.append((boxes[j][4].item(), True))
+                                if boxes[j][4] > asr_conf:  # and see if the conf is large enough
+                                    asr_fails += 1
                             else:
                                 positives.append((boxes[j][4].item(), False))
+                    asr_cnt += (asr_fails > 0)
+                img_cnt += len(all_boxes)
 
         positives = sorted(positives, key=lambda d: d[0], reverse=True)
         tps = []
@@ -146,7 +154,7 @@ def test(model, loader, adv_patch=None, conf_thresh=0.5, nms_thresh=0.4, iou_thr
     else:
         avg = float('nan')
 
-    return precision, recall, avg, confs
+    return precision, recall, avg, confs, (img_cnt - asr_cnt) / img_cnt
 
 
 def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64, no_save_res=False):
@@ -174,7 +182,8 @@ def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64,
         pin_memory=True,
     )
 
-    res = []
+    res_aps = []
+    res_asrs = []
     if load_path is not None:
         if os.path.isdir(load_path):
             if mask is None:
@@ -190,18 +199,27 @@ def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64,
             path_to_yaml = '/'.join(split_path[:-1])
             patch_name = split_path[-1]
             aps_name = "aps" if net == "yolov2" else f"aps_{net}"
+            asrs_name = "asrs" if net == "yolov2" else f"asrs_{net}"
             
             print('storage yaml', f'{path_to_yaml}/{aps_name}.yaml')
-            if not os.path.isfile(f'{path_to_yaml}/{aps_name}.yaml'):
-                with open(f'{path_to_yaml}/{aps_name}.yaml', 'w') as f:
-                    f.write('aps:\n')
-                    f.write('    none: 0')
-            with open(f'{path_to_yaml}/{aps_name}.yaml', 'r') as f:
-                calculated = yaml.load(f, Loader=yaml.SafeLoader)
-            if patch_name in calculated['aps']:
-                res.append(calculated['aps'][patch_name])
-                continue
-
+            calcs = []
+            for met_name, met_file_name in [('aps', aps_name), ('asrs', asrs_name)]:
+                if not os.path.isfile(f'{path_to_yaml}/{met_file_name}.yaml'):
+                    with open(f'{path_to_yaml}/{met_file_name}.yaml', 'w') as f:
+                        f.write(f'{met_name}:\n')
+                        f.write('    none: 0')
+                with open(f'{path_to_yaml}/{met_file_name}.yaml', 'r') as f:
+                    calcs.append(yaml.load(f, Loader=yaml.SafeLoader))
+            calculated, calculated_asrs = calcs
+            aps_added = False
+            if patch_name in calculated["aps"]:
+                res_aps.append(calculated["aps"][patch_name])
+                print('Found AP', res_aps[-1])
+                aps_added = True
+                if patch_name in calculated_asrs["asrs"]:
+                    res_asrs.append(calculated_asrs["asrs"][patch_name])
+                    print('Found ASR', res_asrs[-1])
+                    continue
             try:
                 patch = torch.from_numpy(np.load(img_path)[:1]).to(device)
             except ValueError:
@@ -209,16 +227,24 @@ def get_save_aps(device, load_path=None, mask=None, net='yolov2', batch_size=64,
                 patch = transforms.ToTensor()(patch).to(device)
 
             test_patch = patch.detach().clone()
-            prec, rec, ap, confs = test(darknet_model, loader, adv_patch=test_patch, conf_thresh=0.01, old_fasion=True,
-                                        pipeline='3d', device=device, net=net)
-            res.append(ap)
-            print(f'Saving results to {path_to_yaml}/{aps_name}.yaml')
+            prec, rec, aps, confs, asrs = test(darknet_model, loader, adv_patch=test_patch, conf_thresh=0.01, old_fasion=True,
+                                            pipeline='3d', device=device, net=net, asr_conf=0.5)
+            print('Calculated:')
+            print('AP ', aps)
+            print('ASR', asrs)
+            if not aps_added:
+                res_aps.append(aps)
+                if not no_save_res:
+                    with open(f'{path_to_yaml}/{aps_name}.yaml', 'a') as f:
+                        f.write('\n')
+                        f.write(f"    {patch_name}: " + '%.5f' % aps)
+            res_asrs.append(asrs)
             if not no_save_res:
-                with open(f'{path_to_yaml}/{aps_name}.yaml', 'a') as f:
+                with open(f'{path_to_yaml}/{asrs_name}.yaml', 'a') as f:
                     f.write('\n')
-                    f.write(f"    {patch_name}: " + '%.5f'% ap)
-    return res
+                    f.write(f"    {patch_name}: " + '%.5f' % asrs)
 
+    return res_aps, res_asrs
 
 def get_with_mask(load_path, mask=r".+", met_cnt=True, device='cuda:0', calc_ap=True, model_name=''):
     assert model_name in ("yolov2", "yolov3", "yolov3-mmdet", "faster-rcnn", "detr")
@@ -306,8 +332,10 @@ def get_num_scheduler(x):
     patch_name = x[2].split('/')[-1].split('_')
     sched = []
     ind = 3
+    if 'basic' in patch_name:
+        return []
     while ':' in patch_name[patch_name.index('adv') + ind]:
-        sched += list(map(int, patch_name[patch_name.index('adv') + ind].split(':')))
+        sched += list(map(lambda x: -int(x), patch_name[patch_name.index('adv') + ind].split(':')))
         ind += 1
     return sched
 
@@ -376,7 +404,7 @@ def plot_patches(to_plot, sort_key='l2', ncols=5, title='ap'):
                 ttl += ' ' + get_scheduler(cur_to_plot).replace('_', ' ')
             if 'los' in title.split('_'):
                 ttl += ' los ' + get_los_num(cur_to_plot)
-            ax[r, c].title.set_text(ttl)
+            ax[r, c].set_title(ttl, fontsize=22)
     plt.subplots_adjust(wspace=0, hspace=0.2)
     plt.savefig('tbd.png')
     
