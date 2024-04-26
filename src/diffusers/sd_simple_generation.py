@@ -144,11 +144,13 @@ elif pargs.type == 'adv':
         name += f'_los_{batch_size}_{pargs.latents_opt_mode}'
     if pargs.adv_model in ('yolov2', 'yolov3', 'detr', 'yolov3-mmdet'):
         adv_bs = 12
+        adv_accum = 128
     elif pargs.adv_model == 'faster-rcnn':
         adv_bs = 9
+        adv_accum = 81
     out = pipe(height=height, width=width, prompt=prompt, self_guidance_dict=self_guidance_dict, latents=latents,
             num_inference_steps=num_inference_steps, self_guidance_scale=self_guidance_scale, 
-            adv_guidance_scale=adv_guidance_scale, adv_batch_size=adv_bs, adv_model=pargs.adv_model,
+            adv_guidance_scale=adv_guidance_scale, adv_batch_size=adv_bs, adv_accum_size=adv_accum, adv_model=pargs.adv_model,
             guidance_scale=guidance_scale, save_every=save_every, adv_scale_schedule_dict=adv_scale_schedule_dict,
             adv_scale_schedule_type=pargs.scale_type, self_guidance_precalculate_steps=num_inference_steps,
             pipeline=pargs.pipeline, num_latent_opt_steps=pargs.lo_steps, latent_opt_scale=pargs.lo_coef,

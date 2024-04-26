@@ -266,13 +266,15 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         img[0].save(path_output)
 
     # Util function to compute different versions of the adversarial loss
-    def compute_adv_loss(self, adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded):
+    def compute_adv_loss(self, adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded, return_cnt=False):
         device = adv_imgs.device
-        if adv_model == 'yolov7':
+        if adv_model == 'yolov7': # DEPRECATED
             pred = yolo(adv_imgs)
             loss, _ = compute_loss(pred[1][:3], targets_all[0].to(device))
         else:
             loss, valid_num = compute_loss(yolo, adv_imgs, targets_padded.to(device), name=adv_model, mode='max')
+            if return_cnt:
+                return loss, valid_num
             if valid_num > 0:
                 loss = loss / valid_num
             else:
@@ -591,6 +593,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             self_guidance_precalculate_steps: int = 0,
             adv_guidance_scale: float = 1000.0,
             adv_batch_size: int = 0,
+            adv_accum_size: int = 0,
             adv_model: str = "yolov2",
             adv_scale_schedule_dict: dict = dict(),
             adv_scale_schedule_type: str = "basic",
@@ -681,6 +684,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         )
         # versions of the detector
         assert adv_model in ('yolov2', 'yolov3', 'faster-rcnn', 'detr', 'yolov3-mmdet')
+
+        # Minimum gradient accumulation is the batch size
+        adv_accum_size = max(adv_accum_size, adv_batch_size)
 
         # Directory for saves
         if save_every != -1:
@@ -805,12 +811,6 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                  clip_skip, 0.0, {}, True, 0, need_self_attn=need_self_attn)
 
         batch_idx = -1
-        if do_other: 
-            all_adv_losses = []
-            all_adv_losses_other = []
-            all_adv_grads = []
-            yolo_other = get_model(None, torch.device('cpu'), adv_model[:-1] + str(5 - int(adv_model[-1])))
-
         if num_latent_opt_steps > 0:
             print('Latent Optimization...')
             for _ in tqdm(range(num_latent_opt_steps)):
@@ -874,26 +874,30 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 
                 # Adversarial guidance
                 if do_adv:
-                    imgs, targets_all = self.next_data(adv_dataloader, pipeline)
-                    batch_idx += 1
-                    imgs = imgs.to(device, non_blocking=True)
-                    adv_patch = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
-                    if save_every != -1 and (i + 1) % save_every == 0:
-                        img = self.image_processor.postprocess(adv_patch.detach(), output_type=output_type, do_denormalize=[True])
-                        img[0].save(f'process/{i}.png')
-                    adv_imgs, targets_padded = get_adv_imgs(adv_patch, pipeline, targets_all, tps, patch_transformer,
-                                                            patch_applier, imgs, renderer, batch_idx, adv_dataloader)
+                    adv_image_index = 0
+                    adv_loss = 0
+                    valid_count = 0
+                    # Using gradient accumulation
+                    while adv_image_index < adv_accum_size:
+                        imgs, targets_all = self.next_data(adv_dataloader, pipeline)
+                        batch_idx += 1
+                        adv_image_index += adv_batch_size
+                        imgs = imgs.to(device, non_blocking=True)
+                        adv_patch = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
 
-                    adv_loss = self.compute_adv_loss(adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded)
-                    if adv_loss != 0:
-                        grads = torch.autograd.grad(adv_guidance_scale * adv_loss, latents)
+                        adv_imgs, targets_padded = get_adv_imgs(adv_patch, pipeline, targets_all, tps, patch_transformer,
+                                                                patch_applier, imgs, renderer, batch_idx, adv_dataloader)
+
+                        adv_loss_step, valid_count_step = self.compute_adv_loss(adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded, return_cnt=True)
+                        adv_loss += adv_loss_step
+                        valid_count += valid_count_step
+                    if adv_loss != 0 and valid_count > 0:
+                        grads = torch.autograd.grad(adv_guidance_scale * adv_loss / valid_count, latents)
                         scaled_guidance_funcs.append(grads[0])
-
-                    if do_other:
-                        adv_loss_other = self.compute_adv_loss(adv_model[:-1] + str(5 - int(adv_model[-1])), adv_imgs.detach().cpu(), compute_loss, yolo_other, targets_all.detach().cpu(), targets_padded.detach().cpu())
-                        all_adv_losses.append(adv_loss.item())
-                        all_adv_losses_other.append(adv_loss_other.item())
-                        all_adv_grads.append(torch.norm(grads[0].detach().cpu()).item())
+                    if save_every != -1 and (i + 1) % save_every == 0:
+                        img = self.image_processor.postprocess(adv_patch.detach(), output_type=output_type,
+                                                               do_denormalize=[True])
+                        img[0].save(f'process/{i}.png')
 
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
