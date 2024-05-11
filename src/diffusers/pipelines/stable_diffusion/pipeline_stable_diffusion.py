@@ -875,10 +875,10 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                 # Adversarial guidance
                 if do_adv:
                     adv_image_index = 0
-                    adv_loss = 0
-                    valid_count = 0
+                    adv_grads = 0
                     # Using gradient accumulation
                     while adv_image_index < adv_accum_size:
+                        valid_count = 0
                         imgs, targets_all = self.next_data(adv_dataloader, pipeline)
                         batch_idx += 1
                         adv_image_index += adv_batch_size
@@ -889,11 +889,12 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
                                                                 patch_applier, imgs, renderer, batch_idx, adv_dataloader)
 
                         adv_loss_step, valid_count_step = self.compute_adv_loss(adv_model, adv_imgs, compute_loss, yolo, targets_all, targets_padded, return_cnt=True)
-                        adv_loss += adv_loss_step
+                        adv_loss = adv_loss_step
                         valid_count += valid_count_step
-                    if adv_loss != 0 and valid_count > 0:
-                        grads = torch.autograd.grad(adv_guidance_scale * adv_loss / valid_count, latents)
-                        scaled_guidance_funcs.append(grads[0])
+                        if adv_loss != 0 and valid_count > 0:
+                            grads = torch.autograd.grad(adv_guidance_scale * adv_loss / valid_count, latents)
+                            adv_grads += grads[0]
+                    scaled_guidance_funcs.append(adv_grads)
                     if save_every != -1 and (i + 1) % save_every == 0:
                         img = self.image_processor.postprocess(adv_patch.detach(), output_type=output_type,
                                                                do_denormalize=[True])
