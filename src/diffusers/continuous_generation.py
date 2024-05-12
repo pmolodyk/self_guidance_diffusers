@@ -8,6 +8,7 @@ from src.diffusers.adversarial.utils.ap_calc_utils import get_save_aps
 
 parser = argparse.ArgumentParser(description='PyTorch Training')
 parser.add_argument('--yaml-name', type=str)
+parser.add_argument('--python-path', default='python', type=str, help='path to custom python executable')
 pargs = parser.parse_args()
 
 with open(f'src/diffusers/{pargs.yaml_name}.yaml') as f:
@@ -20,6 +21,7 @@ prompt = data_dict['prompt']
 gsc = data_dict['guidance_scale']
 fap = data_dict['fix_appearance']
 fat = data_dict['fix_attention']
+adv_batch_accum = data_dict['adv_batch_accum']
 adv_model = data_dict['adv_model']
 lo_steps = data_dict['lo_steps'] if 'lo_steps' in data_dict else [0] * n
 lo_coef = data_dict['lo_coef'] if int(lo_steps[0]) > 0 else [0] * n
@@ -59,32 +61,35 @@ for i in tqdm(range(n), total=n):
     if latents_search_n > 1:
         ls_text = f"--latents-search-n {latents_search_n} --latents-opt-mode {latents_opt_mode[i]}"
 
-    cmd = f'python -m src.diffusers.sd_simple_generation --adv-coef "{dct}" --adv-model "{adv_model}" --type adv --steps {steps} --device {device} --prompt "{prompt}" --guidance-scale {gsc} {fa_text} {lo_text} {ls_text}'
+    name = f'adv_{steps}_{int(gsc)}_{dct.replace(" ", "_")}'
+    if len(fa_text) > 1:
+        name += f'_fx'
+    if fat or fap:
+        name += f"_{float(data_dict['appearance_coef'][i])}"
+    if fat:
+        name += f'_fa_{att_weight}'
+    if lo_steps[i] > 0:
+        name += f'_lo_{lo_steps[i]}_{lo_coef[i]}'
+    name += '_3d'
+    if not adv_model.endswith('2'):
+        name += f'_{adv_model}'
+    if latents_search_n > 1:
+        name += f'_los_{latents_search_n}_{latents_opt_mode[i]}'
+
+    name += f'_acc_{adv_batch_accum}'
+
+    cmd = f'{pargs.python_path} -m src.diffusers.sd_simple_generation --adv-coef "{dct}" --adv_batch_accum {adv_batch_accum} --adv-model "{adv_model}" --type adv --steps {steps} --device {device} --prompt "{prompt}" --name "{name}" --guidance-scale {gsc} {fa_text} {lo_text} {ls_text}'
     print(cmd)
     os.system(cmd)
 
     if 'ap_models' in data_dict:
         sleep(5)
-        name = f'adv_{steps}_{int(gsc)}_{dct.replace(" ", "_")}'
-        if len(fa_text) > 1:
-            name += f'_fx'
-        if fat or fap:
-            name += f"_{float(data_dict['appearance_coef'][i])}"
-        if fat:
-            name += f'_fa_{att_weight}'
-        if lo_steps[i] > 0:
-            name += f'_lo_{lo_steps[i]}_{lo_coef[i]}'
-        name += '_3d'
-        if not adv_model.endswith('2'):
-            name += f'_{adv_model}'
-        if latents_search_n > 1:
-            name += f'_los_{latents_search_n}_{latents_opt_mode[i]}'
         patch_path = f'patches/{"_".join(prompt.split())}'
         patch_name = f'{name}_{prompt.replace(" ", "_")}.png'
         print('patch_path:', patch_path)
         print('patch_name:', patch_name)
         for now_model in data_dict["ap_models"]:
-            cmd = f'python -m src.diffusers.test_3d --load-path "{patch_path}" --mask "{patch_name}" --device {device} --net "{now_model}"'
+            cmd = f'{pargs.python_path} -m src.diffusers.test_3d --load-path "{patch_path}" --mask "{patch_name}" --device {device} --net "{now_model}"'
             print(cmd)
             os.system(cmd)
             sleep(5)
