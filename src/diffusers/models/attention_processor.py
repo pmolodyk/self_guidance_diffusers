@@ -588,9 +588,12 @@ class RecordingAttnProcessor:
         hidden_states = torch.bmm(attention_probs, value)
         hidden_states = attn.batch_to_head_dim(hidden_states)
 
+        # record attention maps for guidance
         if is_cross_attention:
             uncond_sz = attention_probs.shape[0] // 2
             self.attn_recorder.maps = attention_probs[uncond_sz:, :, :]
+        else:
+            self.attn_recorder.self_maps = attention_probs
 
         # linear proj
         hidden_states = attn.to_out[0](hidden_states, scale=scale)

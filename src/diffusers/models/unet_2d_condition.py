@@ -780,6 +780,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
         mid_block_additional_residual: Optional[torch.Tensor] = None,
         encoder_attention_mask: Optional[torch.Tensor] = None,
         return_dict: bool = True,
+        has_self_guidance: bool = False,
     ) -> Union[UNet2DConditionOutput, Tuple]:
         r"""
         The [`UNet2DConditionModel`] forward method.
@@ -1049,16 +1050,29 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                 upsample_size = down_block_res_samples[-1].shape[2:]
 
             if hasattr(upsample_block, "has_cross_attention") and upsample_block.has_cross_attention:
-                sample = upsample_block(
-                    hidden_states=sample,
-                    temb=emb,
-                    res_hidden_states_tuple=res_samples,
-                    encoder_hidden_states=encoder_hidden_states,
-                    cross_attention_kwargs=cross_attention_kwargs,
-                    upsample_size=upsample_size,
-                    attention_mask=attention_mask,
-                    encoder_attention_mask=encoder_attention_mask,
-                )
+                if is_final_block and has_self_guidance:
+                    sample = upsample_block(
+                        hidden_states=sample,
+                        temb=emb,
+                        res_hidden_states_tuple=res_samples,
+                        encoder_hidden_states=encoder_hidden_states,
+                        cross_attention_kwargs=cross_attention_kwargs,
+                        upsample_size=upsample_size,
+                        attention_mask=attention_mask,
+                        encoder_attention_mask=encoder_attention_mask,
+                        record_appearance=True,
+                    )
+                else:
+                    sample = upsample_block(
+                        hidden_states=sample,
+                        temb=emb,
+                        res_hidden_states_tuple=res_samples,
+                        encoder_hidden_states=encoder_hidden_states,
+                        cross_attention_kwargs=cross_attention_kwargs,
+                        upsample_size=upsample_size,
+                        attention_mask=attention_mask,
+                        encoder_attention_mask=encoder_attention_mask,
+                    )
             else:
                 sample = upsample_block(
                     hidden_states=sample,

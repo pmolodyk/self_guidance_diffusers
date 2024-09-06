@@ -1,0 +1,160 @@
+% !TeX root = ../thuthesis-example.tex
+
+\chapter{INTRODUCTION}
+
+Deep Neural Networks (DNNs), an architecture of the large family of Deep Learning (DL) algorithms, are a powerful tool that is nowadays used for solving countless practical challenges.
+
+In fact, almost every part of our everyday lives can be automatized to a certain degree with the help of an appropriate tool build upon a DNN.
+Cars and other vehicles can rely on Computer Vision (CV) systems for autonomous driving; the problem of international communication between people who do not know foreign languages had been significantly alleviated with the help of translation provided by Language Models (LMs); data analysis with the use of various basic Machine Learning (ML) techniques can now produce more accurate predictions for future trends in such important fields as finances, medicine, natural disaster prevention, and others; Reinforcement Learning (RL) enabled improvements in robotics, and so on.
+
+A major problem that surfaces as the trend to deploying DNNs in all fields of our lives continues to gain momentum is the reliability of the said systems.
+In particular, even though the DNNs work exceptionally well on many tasks, they are known to be fragile to adversarial examples: an attacker can perturb input data in a way that the predictions of the model will be damaged.
+
+This thesis addresses the aforementioned problem by demonstrating a way to construct such malicious examples. 
+Thus, the work lies at the intersection of three major areas of DL: detection, adversarial attacks, and diffusion models.
+In this section, we delve a little deeper into these three areas as we introduce their importance to our modern fast-paced world.
+
+% TODO more here: I need like 2+ pages
+
+\section{Detection}
+
+CV tasks are one of the largest areas of research in DL.
+The human eye and brain are capable of acquiring and processing visual information easily and in an instant.
+By looking at a single picture, we immediately gain overall understanding of the situation, simultaneously retrieving a lot more data than we even realize. 
+
+In modern CV systems, however, the tasks are typically solved separately by applying different DL systems.
+For example, just as we can immediately ``name'' a picture by analyzing the overall content and thus successfully categorizing the given image, a classification model can label images according to the classes that were introduced to the model during the training process.
+This particular task is called image classification, and, as far as the architectures of such models go, the task is relatively simple: in some cases, a single CNN (Convolutional Neural Network) that outputs probabilities of the classes for each given input is enough to achieve decent results.
+
+Image classification, however, is far from being the only task in the large research area that CV is.
+Let us turn our attention to another ability our human vision provides: ability to detect and recognize various objects.
+Imagine driving down the street in a busy city.
+As a driver, you have to constantly monitor the situation outside your car windows: you have to quickly note and recognize road signs, watch over pedestrians that may want to cross the street, carefully keep your distance from other cars---after all, to err is human, and any driver must be ready to make swift decisions in response to other people's mistakes such as unskillful driving or crossing road in undesignated areas.
+For us, as for researchers of the CV area, this task is called object detection.
+If we describe the problem in a slightly more formal manner, it will sound like this: given an input image, our system is required to find all relevant to our task objects and classify them.
+Thus, the output of our system will more likely consist of three parts: firstly, the coordinates for every found object, secondly, what classes the objects are, and lastly, how confident the model is in these predictions.
+The last part is also easy to understand if you imagine being a driver that looks through a dirty window of their car trying to understand if the silhouette on the road in front of them is an animal or just a pool of water.
+If the driver is sufficiently confident that this is nothing but a pool, they can continue driving normally; otherwise, they need to stop the car.
+
+Normally, unlike in a similar task of image segmentation where we have to provide class for each pixel of our input image, in case of object detection, we are only asked to provide a bounding box (bbox) around each object.
+
+A large number of models with DNN backbones has been proposed to solve the object detection challenge, and the state-of-the-art methods in this field and have achieved high detection accuracy. 
+For instance, the most famous works in this area include Faster R-CNN~\cite{faster_rcnn} (Faster Regions With CNNs), DETR~\cite{detr} (Detection Transformer), and YOLO~\cite{yolov3} end-to-end detectors.
+
+% TODO more...
+
+\section{Adversarial Attacks}
+
+As we have previously established, the fact that the DNNs are gradually getting into so many areas of our lives, gives rise to major concerns with the reliability of the DNNs.
+
+Despite the exceptional results the DNNs show in most if not all of their applications, they have been proven to not be stable and consistent in their predictions, which can be exploited with malicious intents.
+The adverse effects of adversarial attacks are attracting a lot of attention now in light of the sheer amount of models produced for fault-sensitive practical tasks nowadays, such as detection modules of self-driving cars, chatbots, medicine, facial recognition systems and other applications, where a single mistake can cost lots of money or even human lives.
+
+Unlike a DNN that is sensitive from the out-of-distribution input data to its inside architecture and training parts such as hyperparameters or initialization, the human eye is hard to fool.
+For example, let us consider the aforementioned task of image classification.
+When we see an image of a cat, we can immediately categorize it as such, even if the photo is perhaps a little bit dirty or even missing some parts.
+For a fragile CV system, however, a slight perturbation in the input data may be enough to give out completely incorrect prediction, going as far as to become absolutely sure that the provided image depicts a car, while for the human eye, the same perturbation will go undetected.
+It is easy to imagine an attacker changing a small set of pixels or adding unnoticeable noise to an input image; yet CV is not the only area vulnerable to such attacks. 
+Even LMs that might seem more stable are susceptible to them: additional lines attached to the ending of an input line, or even seemingly unimportant and harmless typographical errors in given data may lead to abnormal behaviour of LMs. 
+In recent years, many adversarial examples on different kinds of DNNs have been constructed, such as~\cite{first_adv, fgsm, pgd} etc.
+
+In our case, however, as it has been mentioned previously, we are concerned with the safety a very specific area of DL: object detection.
+Attack on detection models are normally not as easy as attacks on less convoluted CV models like classifiers, yet it was shown that they are entirely plausible.
+Again, by introducing inconspicuous to the human eye changes to input data, one can cause the detectors to behave in bizarre ways.
+As we have established, a typical detection system output consists of three parts: bboxes that denote the position of elements, classes for each of them, and the confidence in found objects.
+Naturally, adversarial samples may aim to impair the operation of the detector with different corresponding attack types.
+For example, if an attack only causes the model to assign an incorrect class, while still finding bboxes, this attack will be called a \textit{misclassification} attack.
+As the title of the thesis shows, however, we are interested in avoiding detection altogether by performing \textit{evasion} attacks.
+In practice, these attacks aim to lower the confidence of the detected bboxes.
+Let us imagine for a moment that we have come up with some kind of ``perfect'' evasion adversarial attack and our victim object detection model stopped detecting any objects of our interest, say, people.
+Now lets also assume that the victim detection model is actually a part of a CV system that dictates the movements to a car set on autonomous driving.
+Since the system is no longer able to detect humans at all, it will completely ignore any pedestrians, which will result in a car accident.
+Thus, it is easy to understand just how important it is to ensure the safety of our CV systems and protect them against adversarial attacks.
+
+Given the importance of the stability of object detection systems, there is no wonder that the area does not lack active research.
+However, most of the attacks focus on achieving a higher attack success rate (ASR) and give little attention to how natural their adversarial perturbations seem to humans.
+Yet the lack of naturalness in adversarial examples lowers the value of the attack since such samples draw unwanted attention from human observers; moreover, it is easier to protect a CV system from such unnatural patterns than against those that seem harmless.
+Again, in practice, natural adversarial examples are important since they might be used for threatening models that absolutely need to be robust, like detectors in self-driving cars.
+
+Furthermore, when it comes to practical applications in CV tasks, we become rather interested in physical scenarios instead of the digital ones.
+After all, the attacker rarely has access to the insides of a CV system, while changing the physical world by, for example, attaching a sticker to a road sign, is possible for everyone.
+While for the attacks in the digital space, it is fairly easy to introduce an inconspicuous change to the input data to fool the human eye, most of the physical attacks look unnatural since the task itself is way more difficult and requires more robust solutions compared to those in the digital space.
+In their turn, the adversarial samples also need to be way more robust than their digital analogies.
+
+To address this issue, many natural-looking physical attacks have been introduced~\cite{stop_signs_detectors_380, dog_patch_clothes, wang2021dual}.
+For the detection task, the adversarial attacks are mainly created as patches and stickers~\cite{spatial_context, aerial_patch, rp2} or textures~\cite{car_camo, texture}.
+
+Stickers and patches are small pieces of paper with adversarial patterns, that can be attached to something in the real world and disrupt the behaviour of their victim CV systems.
+Textures, in this case, are something that ``envelopes'' an entire object, like clothes to a person or colored surfaces to cars.
+
+For the physical scenario, textures are preferable since a patch only retains its adversarial qualities at a limited range of angles of the camera in the real world.
+While it is possible to attach adversarial patches all over the object to avoid this problem at least partially, an object that has the same non-pattern patch repeated all over itself will look unnatural, while a texture would not attract as much attention.
+There are, of course, certain limitations to textures, even compared to patches.
+For instance, only a very limited range of objects does not look strange covered in a texture; normally, only personal belongings like clothes or car patterns that have been already mentioned before do not look suspicious when heavily personalized, unlike public objects like roads or signs.
+Patches, however, suffer from a similar problem since any foreign objects attached to things in public spaces are considered trash and removed as soon as the human eyes spots them.
+
+While adversarial attacks by themselves have a negative societal impact in the sense that they might be used to fool DNNs with malicious purposes, we believe that this research can help with defending against attacks like this.
+Just like in cybersecurity where the people work either in the blue team coming up with defense techniques or in the red designing methods for attacks, we aim to push forward research that focuses on making the CV systems in all their forms more secure and robust.
+
+% TODO more...
+
+\section{Diffusion Models}
+
+Another research area that is highly relevant to this thesis is generative artificial intelligence, in particular, image generation in CV.
+
+The first thought that comes to mind when it comes to applications of image generation is its artistic value, yet the usage of generative models go way beyond this.
+For this research, it is important to understand that they can play a big role in producing adversarial samples.
+For example, a correctly trained model can generate malicious out-of-distribution examples. 
+While it is extremely useful in terms of how they can be used like augmentations to complement existing datasets for training more stable models, the models can also be used for attacking various systems.
+
+For example, the patches, stickers, and textures we have discussed in the previous section can not only be constructed by perturbing existing patterns, but created from noise with generative models.
+
+IN particular, we are interested in generative abilities of diffusion models (DMs).
+DMs performed excellently on many tasks, and using them for generating adversarial samples is a relatively novel and promising way since overall DMs remain an underexplored research area even today.
+
+A DM is usually given a text prompt as input and is required to produce a corresponding image.
+Overall, without going to deep into detail in the introduction part, while generating samples, pretrained DMs gradually remove noise from a random import, overall moving into the direction conditioned by the given prompt.
+Since the process is gradual and consists of many steps, one can alter the direction by bringing change to this trajectory.
+This particular property of DMs that is called \textit{guidance} is important in this research since it means that there might be a way to alter that direction of a pretrained model to make it produce adversarial sample without even any additional training.
+
+% TODO more!!
+
+\section{Thesis Goal}
+
+Now, armed with at least superficial understanding of all areas that are related to the research in this thesis, we can finally formulate the goal we are pursuing.
+
+In short, we are to find a way to create physically realizable adversarial textures that are not immediately recognized as a threat by the human eye.
+The created framework should help to obtain such realistic adversarial textures for suppression of predictions of a detector by generating them with a diffusion model.
+
+That is, we want to be able to generate patterns for clothes that make a person invisible to victim object detectors.
+
+The created texture is to satisfy to three requirements: it has to be \textit{effective}, \textit{natural}, and \textit{controllable}.
+
+% TODO include the examples from other papers as sota
+
+\begin{itemize}
+    \item \textit{Effective} means that our clothes should hide the attacker from all angles, not like a patch that only works from a certain angle.
+
+    \item \textit{Natural} means that the clothes should not look suspicious to the human eye. 
+    That requirement prohibits us from simply generating an adversarial image and tiling the entire clothes with it since a repetition of a random image looks highly unnatural.
+
+    \item \textit{Controllable} means that we want to be able to generate a wide range of patterns depending on what the user (in our case---attacker) wants to see.
+    This requirement is important because, as we will see in the literature review section, there are few methods that provide an opportunity to control the generated adversarial pattern in the physical world.
+\end{itemize}
+
+\section{Contribution}
+
+The pipeline proposed in this thesis satisfies the requirements defined above.
+The newly introduced method has the following main advantages:
+
+\begin{itemize}
+    \item \textbf{Effectiveness and naturalness}.
+    While this method does not beat the state-of-the-art ones in terms of how well the adversarial textures hide people from detection, this method allows to trade the adversarial effectiveness for achieving additional naturalness.
+    \item \textbf{Speed}.
+    Due to the fact that that we only use pretrained models, the method is significantly faster than other methods that require additional training.
+\end{itemize}
+
+% TODO more
+
+
+

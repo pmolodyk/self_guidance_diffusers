@@ -1,7 +1,7 @@
 import argparse
+from copy import deepcopy
 import logging
 import sys
-from copy import deepcopy
 
 sys.path.append('./')  # to run '$ python *.py' files in subdirectories
 logger = logging.getLogger(__name__)
@@ -810,7 +810,6 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
             ch = []
         ch.append(c2)
     return nn.Sequential(*layers), sorted(save)
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

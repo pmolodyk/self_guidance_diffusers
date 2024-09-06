@@ -1,0 +1,598 @@
+\begin{thebibliography}{79}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{#1}
+\expandafter\ifx\csname urlstyle\endcsname\relax\else
+  \urlstyle{same}\fi
+\expandafter\ifx\csname href\endcsname\relax
+  \DeclareUrlCommand\doi{\urlstyle{rm}}
+  \def\eprint#1#2{#2}
+\else
+  \def\doi#1{\href{https://doi.org/#1}{\nolinkurl{#1}}}
+  \let\eprint\href
+\fi
+
+\bibitem[Ren et~al.(2015)Ren, He, Girshick, and Sun]{faster_rcnn}
+Ren S, He K, Girshick R~B, et~al.
+\newblock Faster {R-CNN:} towards real-time object detection with region
+  proposal networks\allowbreak[J/OL].
+\newblock CoRR, 2015, abs/1506.01497.
+\newblock \url{http://arxiv.org/abs/1506.01497}.
+
+\bibitem[Carion et~al.(2020)Carion, Massa, Synnaeve, Usunier, Kirillov, and
+  Zagoruyko]{detr}
+Carion N, Massa F, Synnaeve G, et~al.
+\newblock End-to-end object detection with transformers\allowbreak[A].
+\newblock 2020.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2005.12872}{2005.12872}.
+
+\bibitem[Redmon et~al.(2018)Redmon and Farhadi]{yolov3}
+Redmon J, Farhadi A.
+\newblock Yolov3: An incremental improvement\allowbreak[A].
+\newblock 2018.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1804.02767}{1804.02767}.
+
+\bibitem[Szegedy et~al.(2014)Szegedy, Zaremba, Sutskever, Bruna, Erhan,
+  Goodfellow, and Fergus]{first_adv}
+Szegedy C, Zaremba W, Sutskever I, et~al.
+\newblock Intriguing properties of neural
+  networks\allowbreak[C/OL]//\allowbreak
+International Conference on Learning Representations.
+\newblock 2014.
+\newblock \url{http://arxiv.org/abs/1312.6199}.
+
+\bibitem[Goodfellow et~al.(2015)Goodfellow, Shlens, and Szegedy]{fgsm}
+Goodfellow I~J, Shlens J, Szegedy C.
+\newblock Explaining and harnessing adversarial examples\allowbreak[A].
+\newblock 2015.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1412.6572}{1412.6572}.
+
+\bibitem[Madry et~al.(2019)Madry, Makelov, Schmidt, Tsipras, and Vladu]{pgd}
+Madry A, Makelov A, Schmidt L, et~al.
+\newblock Towards deep learning models resistant to adversarial
+  attacks\allowbreak[A].
+\newblock 2019.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1706.06083}{1706.06083}.
+
+\bibitem[Eykholt et~al.(2018)Eykholt, Evtimov, Fernandes, Li, Rahmati,
+  Tram{\`{e}}r, Prakash, Kohno, and Song]{stop_signs_detectors_380}
+Eykholt K, Evtimov I, Fernandes E, et~al.
+\newblock Physical adversarial examples for object detectors\allowbreak[J/OL].
+\newblock CoRR, 2018, abs/1807.07769.
+\newblock \url{http://arxiv.org/abs/1807.07769}.
+
+\bibitem[Hu et~al.(2021)Hu, Chen, Kung, Hua, and Tan]{dog_patch_clothes}
+Hu Y~C~T, Chen J~C, Kung B~H, et~al.
+\newblock Naturalistic physical adversarial patch for object
+  detectors\allowbreak[C/OL]//\allowbreak
+2021 IEEE/CVF International Conference on Computer Vision (ICCV).
+\newblock 2021: 7828-7837.
+\newblock DOI: \doi{10.1109/ICCV48922.2021.00775}.
+
+\bibitem[Wang et~al.(2021)Wang, Liu, Yin, Liu, Tang, and Liu]{wang2021dual}
+Wang J, Liu A, Yin Z, et~al.
+\newblock Dual attention suppression attack: Generate adversarial camouflage in
+  physical world\allowbreak[A].
+\newblock 2021.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2103.01050}{2103.01050}.
+
+\bibitem[Saha et~al.(2020)Saha, Subramanya, Patil, and
+  Pirsiavash]{spatial_context}
+Saha A, Subramanya A, Patil K, et~al.
+\newblock Role of spatial context in adversarial robustness for object
+  detection\allowbreak[A].
+\newblock 2020.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1910.00068}{1910.00068}.
+
+\bibitem[Adhikari et~al.(2020)Adhikari, den Hollander, Tolios, van Bekkum, Bal,
+  Hendriks, Kruithof, Gross, Jansen, Pérez, Buurman, and
+  Raaijmakers]{aerial_patch}
+Adhikari A, den Hollander R, Tolios I, et~al.
+\newblock Adversarial patch camouflage against aerial detection\allowbreak[A].
+\newblock 2020.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2008.13671}{2008.13671}.
+
+\bibitem[Eykholt et~al.(2018)Eykholt, Evtimov, Fernandes, Li, Rahmati, Xiao,
+  Prakash, Kohno, and Song]{rp2}
+Eykholt K, Evtimov I, Fernandes E, et~al.
+\newblock Robust physical-world attacks on deep learning models\allowbreak[A].
+\newblock 2018.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1707.08945}{1707.08945}.
+
+\bibitem[Duan et~al.(2021)Duan, Chen, Zhou, Zou, He, Zhang, and Pan]{car_camo}
+Duan Y, Chen J, Zhou X, et~al.
+\newblock {DPA:} learning robust physical adversarial camouflages for object
+  detectors\allowbreak[J/OL].
+\newblock CoRR, 2021, abs/2109.00124.
+\newblock \url{https://arxiv.org/abs/2109.00124}.
+
+\bibitem[Hu et~al.(2022)Hu, Huang, Zhu, Sun, Zhang, and Hu]{texture}
+Hu Z, Huang S, Zhu X, et~al.
+\newblock Adversarial texture for fooling person detectors in the physical
+  world\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2203.03373}{2203.03373}.
+
+\bibitem[Moosavi-Dezfooli et~al.(2016)Moosavi-Dezfooli, Fawzi, and
+  Frossard]{deepfool}
+Moosavi-Dezfooli S~M, Fawzi A, Frossard P.
+\newblock Deepfool: a simple and accurate method to fool deep neural
+  networks\allowbreak[A].
+\newblock 2016.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1511.04599}{1511.04599}.
+
+\bibitem[Papernot et~al.(2016)Papernot, McDaniel, Jha, Fredrikson, Celik, and
+  Swami]{jsma}
+Papernot N, McDaniel P, Jha S, et~al.
+\newblock The limitations of deep learning in adversarial
+  settings\allowbreak[C/OL]//\allowbreak
+2016 IEEE European Symposium on Security and Privacy (EuroS\&P).
+\newblock 2016: 372-387.
+\newblock DOI: \doi{10.1109/EuroSP.2016.36}.
+
+\bibitem[Carlini et~al.(2017)Carlini and Wagner]{carlini_attacks}
+Carlini N, Wagner D.
+\newblock Towards evaluating the robustness of neural networks\allowbreak[A].
+\newblock 2017.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1608.04644}{1608.04644}.
+
+\bibitem[Papernot et~al.(2016)Papernot, McDaniel, and
+  Goodfellow]{probably_first_bb}
+Papernot N, McDaniel P, Goodfellow I.
+\newblock Transferability in machine learning: from phenomena to black-box
+  attacks using adversarial samples\allowbreak[A].
+\newblock 2016.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1605.07277}{1605.07277}.
+
+\bibitem[Papernot et~al.(2017)Papernot, McDaniel, Goodfellow, Jha, Celik, and
+  Swami]{famous_bb}
+Papernot N, McDaniel P, Goodfellow I, et~al.
+\newblock Practical black-box attacks against machine learning\allowbreak[A].
+\newblock 2017.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1602.02697}{1602.02697}.
+
+\bibitem[Su et~al.(2019)Su, Vargas, and Sakurai]{one_pixel}
+Su J, Vargas D~V, Sakurai K.
+\newblock One pixel attack for fooling deep neural networks\allowbreak[J/OL].
+\newblock {IEEE} Transactions on Evolutionary Computation, 2019, 23\allowbreak
+  (5): 828-841.
+\newblock \url{https://arxiv.org/abs/1710.08864}.
+\newblock DOI: \doi{10.1109/tevc.2019.2890858}.
+
+\bibitem[Moosavi-Dezfooli et~al.(2017)Moosavi-Dezfooli, Fawzi, Fawzi, and
+  Frossard]{universal}
+Moosavi-Dezfooli S~M, Fawzi A, Fawzi O, et~al.
+\newblock Universal adversarial perturbations\allowbreak[A].
+\newblock 2017.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1610.08401}{1610.08401}.
+
+\bibitem[Brown et~al.(2017)Brown, Man{\'{e}}, Roy, Abadi, and
+  Gilmer]{classifier_patch}
+Brown T~B, Man{\'{e}} D, Roy A, et~al.
+\newblock Adversarial patch\allowbreak[J/OL].
+\newblock CoRR, 2017, abs/1712.09665.
+\newblock \url{http://arxiv.org/abs/1712.09665}.
+
+\bibitem[Karmon et~al.(2018)Karmon, Zoran, and Goldberg]{classifier_patch2}
+Karmon D, Zoran D, Goldberg Y.
+\newblock Lavan: Localized and visible adversarial noise\allowbreak[A].
+\newblock 2018.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1801.02608}{1801.02608}.
+
+\bibitem[Dong et~al.(2018)Dong, Liao, Pang, Su, Zhu, Hu, and Li]{adv_momentum}
+Dong Y, Liao F, Pang T, et~al.
+\newblock Boosting adversarial attacks with momentum\allowbreak[A].
+\newblock 2018.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1710.06081}{1710.06081}.
+
+\bibitem[Dong et~al.(2019)Dong, Pang, Su, and Zhu]{adv_translation_invariant}
+Dong Y, Pang T, Su H, et~al.
+\newblock Evading defenses to transferable adversarial examples by
+  translation-invariant attacks\allowbreak[A].
+\newblock 2019.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1904.02884}{1904.02884}.
+
+\bibitem[Yin et~al.(2021)Yin, Zhang, Wang, and Dou]{adv_optimizer}
+Yin H, Zhang H, Wang J, et~al.
+\newblock Boosting adversarial attacks on neural networks with better
+  optimizer\allowbreak[J/OL].
+\newblock Security and Communication Networks, 2021, 2021: 1-9.
+\newblock \url{https://arxiv.org/abs/2012.00567}.
+\newblock DOI: \doi{10.1155/2021/9983309}.
+
+\bibitem[Shapira et~al.(2022)Shapira, Bitton, Avraham, Zolfi, Elovici, and
+  Shabtai]{det_misclas}
+Shapira A, Bitton R, Avraham D, et~al.
+\newblock Attacking object detector using a universal targeted label-switch
+  patch\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2211.08859}{2211.08859}.
+
+\bibitem[Lee et~al.(2019)Lee and Kolter]{physical_patch}
+Lee M, Kolter Z.
+\newblock On physical adversarial patches for object detection\allowbreak[A].
+\newblock 2019.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1906.11897}{1906.11897}.
+
+\bibitem[Divvala et~al.(2009)Divvala, Hoiem, Hays, Efros, and
+  Hebert]{det_context_emp_study}
+Divvala S~K, Hoiem D, Hays J~H, et~al.
+\newblock An empirical study of context in object
+  detection\allowbreak[C/OL]//\allowbreak
+2009 IEEE Conference on Computer Vision and Pattern Recognition.
+\newblock 2009: 1271-1278.
+\newblock DOI: \doi{10.1109/CVPR.2009.5206532}.
+
+\bibitem[Kayhan et~al.(2022)Kayhan and van Gemert]{dec_context_evaluation}
+Kayhan O~S, van Gemert J~C.
+\newblock Evaluating context for deep object detectors\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2205.02887}{2205.02887}.
+
+\bibitem[Li et~al.(2016)Li, Wei, Liang, Dong, Xu, Feng, and
+  Yan]{det_context_attentive}
+Li J, Wei Y, Liang X, et~al.
+\newblock Attentive contexts for object detection\allowbreak[A].
+\newblock 2016.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1603.07415}{1603.07415}.
+
+\bibitem[Liu et~al.(2018)Liu, Yang, Song, Li, and Chen]{dpatch}
+Liu X, Yang H, Song L, et~al.
+\newblock Dpatch: Attacking object detectors with adversarial
+  patches\allowbreak[J/OL].
+\newblock CoRR, 2018, abs/1806.02299.
+\newblock \url{http://arxiv.org/abs/1806.02299}.
+
+\bibitem[Athalye et~al.(2018)Athalye, Engstrom, Ilyas, and Kwok]{eot}
+Athalye A, Engstrom L, Ilyas A, et~al.
+\newblock Synthesizing robust adversarial examples\allowbreak[A].
+\newblock 2018.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1707.07397}{1707.07397}.
+
+\bibitem[Pavlitskaya et~al.(2022)Pavlitskaya, Hendl, Kleim, Müller, Wylczoch,
+  and Zöllner]{patch_conf_pgd}
+Pavlitskaya S, Hendl J, Kleim S, et~al.
+\newblock Suppress with a patch: Revisiting universal adversarial patch attacks
+  against object detection\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2209.13353}{2209.13353}.
+
+\bibitem[Lu et~al.(2017)Lu, Sibai, and Fabry]{signs_digital}
+Lu J, Sibai H, Fabry E.
+\newblock Adversarial examples that fool detectors\allowbreak[A].
+\newblock 2017.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1712.02494}{1712.02494}.
+
+\bibitem[Chen et~al.(2019)Chen, Cornelius, Martin, and Chau]{sign_shapeshifter}
+Chen S~T, Cornelius C, Martin J, et~al.
+\newblock {ShapeShifter}: Robust physical adversarial attack on faster r-{CNN}
+  object detector\allowbreak[M/OL]//\allowbreak
+Machine Learning and Knowledge Discovery in Databases.
+\newblock Springer International Publishing, 2019: 52-68.
+\newblock \url{https://arxiv.org/abs/1804.05810}.
+
+\bibitem[Xue et~al.(2021)Xue, Yuan, He, Wang, and Liu]{sign_2020_16}
+Xue M, Yuan C, He C, et~al.
+\newblock {NaturalAE}: Natural and robust physical adversarial examples for
+  object detectors\allowbreak[J/OL].
+\newblock Journal of Information Security and Applications, 2021, 57: 102694.
+\newblock \url{https://arxiv.org/abs/2011.13692}.
+\newblock DOI: \doi{10.1016/j.jisa.2020.102694}.
+
+\bibitem[Zhong et~al.(2022)Zhong, Liu, Zhai, Jiang, and Ji]{signs_shadows}
+Zhong Y, Liu X, Zhai D, et~al.
+\newblock Shadows can be dangerous: Stealthy and effective physical-world
+  adversarial attack by natural phenomenon\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2203.03818}{2203.03818}.
+
+\bibitem[Sharif et~al.(2016)Sharif, Bhagavatula, Bauer, and Reiter]{glasses1}
+Sharif M, Bhagavatula S, Bauer L, et~al.
+\newblock Accessorize to a crime: Real and stealthy attacks on state-of-the-art
+  face recognition\allowbreak[C/OL]//\allowbreak
+CCS '16: Proceedings of the 2016 ACM SIGSAC Conference on Computer and
+  Communications Security.
+\newblock New York, NY, USA: Association for Computing Machinery, 2016:
+  1528–1540.
+\newblock \url{https://doi.org/10.1145/2976749.2978392}.
+
+\bibitem[Sharif et~al.(2019)Sharif, Bhagavatula, Bauer, and Reiter]{glasses2}
+Sharif M, Bhagavatula S, Bauer L, et~al.
+\newblock A general framework for adversarial examples with
+  objectives\allowbreak[J/OL].
+\newblock {ACM} Transactions on Privacy and Security, 2019, 22\allowbreak (3):
+  1-30.
+\newblock \url{https://arxiv.org/abs/1801.00349}.
+\newblock DOI: \doi{10.1145/3317611}.
+
+\bibitem[Huang et~al.(2020)Huang, Gao, Zhou, Xie, Yuille, Zou, and
+  Liu]{clothes2}
+Huang L, Gao C, Zhou Y, et~al.
+\newblock Universal physical camouflage attacks on object
+  detectors\allowbreak[A].
+\newblock 2020.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1909.04326}{1909.04326}.
+
+\bibitem[Thys et~al.(2019)Thys, Ranst, and Goedemé]{clothes3}
+Thys S, Ranst W~V, Goedemé T.
+\newblock Fooling automated surveillance cameras: adversarial patches to attack
+  person detection\allowbreak[A].
+\newblock 2019.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1904.08653}{1904.08653}.
+
+\bibitem[Wu et~al.(2020)Wu, Lim, Davis, and Goldstein]{clothes4_inv_cloak}
+Wu Z, Lim S~N, Davis L, et~al.
+\newblock Making an invisibility cloak: Real world adversarial attacks on
+  object detectors\allowbreak[A].
+\newblock 2020.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1910.14667}{1910.14667}.
+
+\bibitem[Xu et~al.(2020)Xu, Zhang, Liu, Fan, Sun, Chen, Chen, Wang, and
+  Lin]{clothes5_tshirt}
+Xu K, Zhang G, Liu S, et~al.
+\newblock Adversarial t-shirt! evading person detectors in a physical
+  world\allowbreak[A].
+\newblock 2020.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1910.11099}{1910.11099}.
+
+\bibitem[Doan et~al.(2022)Doan, Xue, Ma, Abbasnejad, and Ranasinghe]{clothes6}
+Doan B~G, Xue M, Ma S, et~al.
+\newblock Tnt attacks! universal naturalistic adversarial patches against deep
+  neural network systems\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2111.09999}{2111.09999}.
+
+\bibitem[Goodfellow et~al.(2014)Goodfellow, Pouget-Abadie, Mirza, Xu,
+  Warde-Farley, Ozair, Courville, and Bengio]{gan}
+Goodfellow I~J, Pouget-Abadie J, Mirza M, et~al.
+\newblock Generative adversarial networks\allowbreak[A].
+\newblock 2014.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1406.2661}{1406.2661}.
+
+\bibitem[Hu et~al.(2017)Hu and Tan]{adv_gans_first}
+Hu W, Tan Y.
+\newblock Generating adversarial malware examples for black-box attacks based
+  on gan\allowbreak[A].
+\newblock 2017.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1702.05983}{1702.05983}.
+
+\bibitem[Xiao et~al.(2019)Xiao, Li, Zhu, He, Liu, and Song]{adv_gans}
+Xiao C, Li B, Zhu J~Y, et~al.
+\newblock Generating adversarial examples with adversarial
+  networks\allowbreak[A].
+\newblock 2019.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1801.02610}{1801.02610}.
+
+\bibitem[Song et~al.(2018)Song, Shu, Kushman, and Ermon]{adv_gans_unrestrained}
+Song Y, Shu R, Kushman N, et~al.
+\newblock Constructing unrestricted adversarial examples with generative
+  models\allowbreak[A].
+\newblock 2018.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1805.07894}{1805.07894}.
+
+\bibitem[Feng et~al.(2021)Feng, Wu, Zhang, Zhang, and Zhang]{meta_attack}
+Feng W, Wu B, Zhang T, et~al.
+\newblock Meta-attack: Class-agnostic and model-agnostic physical adversarial
+  attack\allowbreak[C]//\allowbreak
+2021 IEEE/CVF International Conference on Computer Vision.
+\newblock 2021: 7787–7796.
+
+\bibitem[Casper et~al.(2023)Casper, Nadeau, Hadfield-Menell, and
+  Kreiman]{adv_gan_}
+Casper S, Nadeau M, Hadfield-Menell D, et~al.
+\newblock Robust feature-level adversaries are interpretability
+  tools\allowbreak[A].
+\newblock 2023.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2110.03605}{2110.03605}.
+
+\bibitem[Lapid et~al.(2023)Lapid and Sipper]{adv_gan_latent}
+Lapid R, Sipper M.
+\newblock Patch of invisibility: Naturalistic black-box adversarial attacks on
+  object detectors\allowbreak[A].
+\newblock 2023.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2303.04238}{2303.04238}.
+
+\bibitem[Liu et~al.(2019)Liu, Liu, Fan, Ma, Zhang, Xie, and Tao]{adv_gan_signs}
+Liu A, Liu X, Fan J, et~al.
+\newblock Perceptual-sensitive gan for generating adversarial
+  patches\allowbreak[C/OL]//\allowbreak
+AAAI'19/IAAI'19/EAAI'19: Proceedings of the Thirty-Third AAAI Conference on
+  Artificial Intelligence and Thirty-First Innovative Applications of
+  Artificial Intelligence Conference and Ninth AAAI Symposium on Educational
+  Advances in Artificial Intelligence.
+\newblock Honolulu, Hawaii, USA: AAAI Press, 2019.
+\newblock \url{https://doi.org/10.1609/aaai.v33i01.33011028}.
+
+\bibitem[Kong et~al.(2021)Kong, Guo, Li, and Liu]{adv_gan_advert}
+Kong Z, Guo J, Li A, et~al.
+\newblock Physgan: Generating physical-world-resilient adversarial examples for
+  autonomous driving\allowbreak[A].
+\newblock 2021.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1907.04449}{1907.04449}.
+
+\bibitem[Ho et~al.(2020)Ho, Jain, and Abbeel]{diffusion}
+Ho J, Jain A, Abbeel P.
+\newblock Denoising diffusion probabilistic models\allowbreak[A].
+\newblock 2020.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2006.11239}{2006.11239}.
+
+\bibitem[Ronneberger et~al.(2015)Ronneberger, Fischer, and Brox]{unet}
+Ronneberger O, Fischer P, Brox T.
+\newblock U-net: Convolutional networks for biomedical image
+  segmentation\allowbreak[A].
+\newblock 2015.
+\newblock arXiv: \eprint{https://arxiv.org/abs/1505.04597}{1505.04597}.
+
+\bibitem[Saharia et~al.(2022)Saharia, Chan, Chang, Lee, Ho, Salimans, Fleet,
+  and Norouzi]{palette}
+Saharia C, Chan W, Chang H, et~al.
+\newblock Palette: Image-to-image diffusion models\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2111.05826}{2111.05826}.
+
+\bibitem[Rombach et~al.(2022)Rombach, Blattmann, Lorenz, Esser, and
+  Ommer]{stable_dif}
+Rombach R, Blattmann A, Lorenz D, et~al.
+\newblock High-resolution image synthesis with latent diffusion
+  models\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2112.10752}{2112.10752}.
+
+\bibitem[Nichol et~al.(2022)Nichol, Dhariwal, Ramesh, Shyam, Mishkin, McGrew,
+  Sutskever, and Chen]{glide}
+Nichol A, Dhariwal P, Ramesh A, et~al.
+\newblock Glide: Towards photorealistic image generation and editing with
+  text-guided diffusion models\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2112.10741}{2112.10741}.
+
+\bibitem[Saharia et~al.(2022)Saharia, Chan, Saxena, Li, Whang, Denton,
+  Ghasemipour, Gontijo~Lopes, Karagol~Ayan, Salimans, Ho, Fleet, and
+  Norouzi]{text2im_dif}
+Saharia C, Chan W, Saxena S, et~al.
+\newblock Photorealistic text-to-image diffusion models with deep language
+  understanding\allowbreak[C]//\allowbreak
+Koyejo S, Mohamed S, Agarwal A, et~al.
+\newblock Advances in Neural Information Processing Systems: volume~35.
+\newblock Curran Associates, Inc., 2022: 36479-36494.
+
+\bibitem[Li et~al.(2021)Li, Yang, Chang, Feng, Xu, Li, and Chen]{dif_sr}
+Li H, Yang Y, Chang M, et~al.
+\newblock Srdiff: Single image super-resolution with diffusion probabilistic
+  models\allowbreak[A].
+\newblock 2021.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2104.14951}{2104.14951}.
+
+\bibitem[Kawar et~al.(2022)Kawar, Elad, Ermon, and Song]{diff_den_sr}
+Kawar B, Elad M, Ermon S, et~al.
+\newblock Denoising diffusion restoration models\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2201.11793}{2201.11793}.
+
+\bibitem[Han et~al.(2022)Han, Zheng, and Zhou]{dif_cl_reg}
+Han X, Zheng H, Zhou M.
+\newblock Card: Classification and regression diffusion models\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2206.07275}{2206.07275}.
+
+\bibitem[Amit et~al.(2022)Amit, Shaharbany, Nachmani, and Wolf]{dif_seg}
+Amit T, Shaharbany T, Nachmani E, et~al.
+\newblock Segdiff: Image segmentation with diffusion probabilistic
+  models\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2112.00390}{2112.00390}.
+
+\bibitem[Wu et~al.(2023)Wu, Fu, Fang, Zhang, Yang, Xiong, Liu, and
+  Xu]{dif_med_seg}
+Wu J, Fu R, Fang H, et~al.
+\newblock Medsegdiff: Medical image segmentation with diffusion probabilistic
+  model\allowbreak[A].
+\newblock 2023.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2211.00611}{2211.00611}.
+
+\bibitem[Ho et~al.(2022)Ho, Salimans, Gritsenko, Chan, Norouzi, and
+  Fleet]{dif_video}
+Ho J, Salimans T, Gritsenko A, et~al.
+\newblock Video diffusion models\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2204.03458}{2204.03458}.
+
+\bibitem[Harvey et~al.(2022)Harvey, Naderiparizi, Masrani, Weilbach, and
+  Wood]{dif_video_long}
+Harvey W, Naderiparizi S, Masrani V, et~al.
+\newblock Flexible diffusion modeling of long videos\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2205.11495}{2205.11495}.
+
+\bibitem[Chen et~al.(2023)Chen, Chen, Chen, Zhang, Zou, and Shi]{adv_diffusion}
+Chen J, Chen H, Chen K, et~al.
+\newblock Diffusion models for imperceptible and transferable adversarial
+  attack\allowbreak[A].
+\newblock 2023.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2305.08192}{2305.08192}.
+
+\bibitem[Toheed et~al.(2022)Toheed, Yousaf, Rabnawaz, and
+  Javed]{unavailable_guys}
+Toheed A, Yousaf M~H, Rabnawaz, et~al.
+\newblock Physical adversarial attack scheme on object detectors using 3d
+  adversarial object\allowbreak[C/OL]//\allowbreak
+2022 2nd International Conference on Digital Futures and Transformative
+  Technologies (ICoDT2).
+\newblock 2022: 1-4.
+\newblock DOI: \doi{10.1109/ICoDT255437.2022.9787422}.
+
+\bibitem[Chang et~al.(2015)Chang, Funkhouser, Guibas, Hanrahan, Huang, Li,
+  Savarese, Savva, Song, Su, Xiao, Yi, and Yu]{shapenet}
+Chang A~X, Funkhouser T, Guibas L, et~al.
+\newblock Shapenet: An information-rich 3d model repository\allowbreak[EB/OL].
+\newblock 2015.
+\newblock \url{http://arxiv.org/abs/1512.03012}.
+
+\bibitem[Wang et~al.(2021)Wang, Jiang, Sun, Zhou, Zhang, Gong, Yao, and
+  Chen]{fca}
+Wang D, Jiang T, Sun J, et~al.
+\newblock Fca: Learning a 3d full-coverage vehicle camouflage for multi-view
+  physical adversarial attack\allowbreak[A].
+\newblock 2021.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2109.07193}{2109.07193}.
+
+\bibitem[Suryanto et~al.(2022)Suryanto, Kim, Kang, Larasati, Yun, Le, Yang, Oh,
+  and Kim]{dta}
+Suryanto N, Kim Y, Kang H, et~al.
+\newblock Dta: Physical camouflage attacks using differentiable transformation
+  network\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2203.09831}{2203.09831}.
+
+\bibitem[Dalal et~al.(2005)Dalal and Triggs]{inria}
+Dalal N, Triggs B.
+\newblock Histograms of oriented gradients for human
+  detection\allowbreak[C/OL]//\allowbreak
+2005 IEEE Computer Society Conference on Computer Vision and Pattern
+  Recognition (CVPR'05): volume~1.
+\newblock 2005: 886-893 vol. 1.
+\newblock DOI: \doi{10.1109/CVPR.2005.177}.
+
+\bibitem[Hu et~al.(2023)Hu, Chu, Zhu, Zhang, Zhang, and Hu]{zh_3d}
+Hu Z, Chu W, Zhu X, et~al.
+\newblock Physically realizable natural-looking clothing textures evade person
+  detectors via 3d modeling\allowbreak[M/OL]//\allowbreak
+Computer Vision and Pattern Recognition Conference.
+\newblock 2023.
+\newblock
+  \url{https://openaccess.thecvf.com/content/CVPR2023/papers/Hu\_Physically\_Realizable\_Natural-Looking\_Clothing\_Textures\_Evade\_Person\_Detectors\_via\_3D\_CVPR\_2023\_paper.pdf}.
+
+\bibitem[Bookstein(1989)]{tps}
+Bookstein F.
+\newblock Principal warps: thin-plate splines and the decomposition of
+  deformations\allowbreak[J/OL].
+\newblock IEEE Transactions on Pattern Analysis and Machine Intelligence, 1989,
+  11\allowbreak (6): 567-585.
+\newblock DOI: \doi{10.1109/34.24792}.
+
+\bibitem[Ho et~al.(2022)Ho and Salimans]{ho2022classifierfree}
+Ho J, Salimans T.
+\newblock Classifier-free diffusion guidance\allowbreak[A].
+\newblock 2022.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2207.12598}{2207.12598}.
+
+\bibitem[Lin et~al.(2014)Lin, Maire, Belongie, Bourdev, Girshick, Hays, Perona,
+  Ramanan, Doll{'{a} }r, and Zitnick]{cocodataset}
+Lin T, Maire M, Belongie S~J, et~al.
+\newblock Microsoft {COCO:} common objects in context\allowbreak[J/OL].
+\newblock CoRR, 2014, abs/1405.0312.
+\newblock \url{http://arxiv.org/abs/1405.0312}.
+
+\bibitem[Dhariwal et~al.(2021)Dhariwal and Nichol]{dhariwal2021diffusion}
+Dhariwal P, Nichol A.
+\newblock Diffusion models beat gans on image synthesis\allowbreak[A].
+\newblock 2021.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2105.05233}{2105.05233}.
+
+\bibitem[Epstein et~al.(2023)Epstein, Jabri, Poole, Efros, and Holynski]{aibek}
+Epstein D, Jabri A, Poole B, et~al.
+\newblock Diffusion self-guidance for controllable image
+  generation\allowbreak[A].
+\newblock 2023.
+\newblock arXiv: \eprint{https://arxiv.org/abs/2306.00986}{2306.00986}.
+
+\end{thebibliography}

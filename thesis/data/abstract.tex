@@ -1,0 +1,37 @@
+% !TeX root = ../thuthesis-example.tex
+
+% 中英文摘要和关键字
+
+\begin{abstract}
+   (TODO: autotranslated) 最近，在构建物理上可实现的探测器规避攻击方面取得了巨大成功。
+   尽管该领域取得了快速进展，但物理领域的对抗性攻击仍然常常不切实际：人眼很容易发现对抗性示例，因为它们不寻常的鲜艳颜色或过于显眼的怪异图案。
+  
+   在这篇硕士论文中，我们提出了一种方法来创建真实的对抗纹理以逃避检测器，但在性能方面仍可与最先进的检测器竞争。
+   受扩散概率模型强大生成能力的启发，我们采用预训练模型，通过指导生成物理上可实现的服装对抗纹理。
+  
+   论文通过将结果与基线方法进行比较，证明了所提出的方法生成的模式的有效性、自然性和可控性。
+   虽然模式的对抗效应并不高于最先进的方法，但我们的策略可以控制模式并能够以自然性来交换对抗效应。
+   此外，由于该方法适用于预训练模型，因此它比基线要快得多。
+
+  % 关键词用“英文逗号”分隔，输出时会自动处理为正确的分隔符
+  \thusetup{
+    keywords = {对抗性攻击、物体识别、扩散模型、物理攻击、指导},
+  }
+\end{abstract}
+
+\begin{abstract*}
+  Recently, huge success has been achieved in constructing physically realizable evasion attacks on detectors.
+  Despite the rapid progress in the area, adversarial attacks in the physical domain still often suffer from being unrealistic: the human eye can easily spot adversarial examples due to their unusual vivid colors or overly conspicuous bizarre patterns.
+  
+  In this master thesis, we propose a method to create realistic adversarial textures for evading detectors that would nevertheless compete with the state-of-the-art ones in terms of performance.
+  Motivated by the strong generation abilities of diffusion probabilistic models, we employ pretrained models for generation of physically realizable adversarial texture for clothing using guidance.
+  
+  The thesis demonstrates the effectiveness, the naturalness, and the controlability of the patterns generated with the proposed method by comparing the results against baseline methods.
+  While the adversarial effect of the patterns is not higher than that of the state-of-the-art methods, our strategy gives control over the pattern and enable trading adversarial effects off for naturalness.
+  Moreover, since the method works on pretrained models, it is significantly faster than the baselines.
+
+  % Use comma as separator when inputting
+  \thusetup{
+    keywords* = {adversarial attacks, object detection, diffusion models, physical attacks, guidance},
+  }
+\end{abstract*}

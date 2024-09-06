@@ -503,7 +503,6 @@ class ComputeLoss:
         tcls, tbox, indices, anch = [], [], [], []
         gain = torch.ones(7, device=targets.device).long()  # normalized to gridspace gain
         ai = torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
-        print(targets.repeat(na, 1, 1).shape, ai[:, :, None].shape)
         targets = torch.cat((targets.repeat(na, 1, 1), ai[:, :, None]), 2)  # append anchor indices
 
         g = 0.5  # bias

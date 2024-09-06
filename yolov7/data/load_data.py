@@ -418,7 +418,9 @@ class PatchApplier(nn.Module):
 def collate_wo_max_label(batch):
     images = torch.stack([el[0] for el in batch], 0)
     labels = torch.cat([torch.cat([torch.full((el[1].shape[0], 1), i), el[1]], 1) for i, el in enumerate(batch)], 0)
-    return images, labels
+    # print(batch[0][2])
+    # 1/0
+    return images, labels, torch.stack([el[2] for el in batch], 0)
 
 
 class InriaDataset(Dataset):
@@ -489,9 +491,11 @@ class InriaDataset(Dataset):
         transform = transforms.ToTensor()
         image = transform(image)
         if self.lab_dir is not None:
+            label_padded = self.pad_lab(label)
             if len(label) == 1:
-                label = label[0]
-            return image, label
+                label, label_padded = label[0], label_padded[0]
+            # print('here', image.shape, label.shape, label_padded.shape)
+            return image, label, label_padded
         else:
             return image, lab_path[0]
 
@@ -521,72 +525,9 @@ class InriaDataset(Dataset):
         padded_img = resize(padded_img)     # choose here
         return padded_img, label
 
-    # def pad_lab(self, label):
-    #     padded_lab = []
-    #     for lab in label:
-    #         pad_size = self.max_n_labels - lab.shape[0]
-    #         padded_lab.append(F.pad(lab, (0, 0, 0, pad_size), value=-1) if pad_size > 0 else lab)
-    #     return padded_lab
-
-
-class Dataset_batched(InriaDataset):
-    def __init__(self, img_dirs, lab_dirs, imgsize, shuffle=True, lab_fix=None, modifier=None):
-        self.img_dirs = img_dirs
-        self.lab_dirs = lab_dirs
-        self.lab_fix = lab_fix
-        self.len = 0
-        self.imgsize = imgsize
-        self.shuffle = shuffle
-        self.img_paths = []
-        self.lab_paths = []
-        self.modifier = modifier
-        for img_dir, lab_dir in zip(img_dirs, lab_dirs) if lab_dirs is not None else zip(img_dirs, img_dirs):
-            n_png_images = len(fnmatch.filter(os.listdir(img_dir), '*.png'))
-            n_jpg_images = len(fnmatch.filter(os.listdir(img_dir), '*.jpg'))
-            n_images = n_png_images + n_jpg_images
-            # n_labels = len(fnmatch.filter(os.listdir(lab_dir), '*.txt'))
-            # assert n_images == n_labels, "Number of images and number of labels don't match"
-            self.len += n_images
-            img_names = fnmatch.filter(os.listdir(img_dir), '*.png') + fnmatch.filter(os.listdir(img_dir), '*.jpg')
-            for img_name in img_names:
-                self.img_paths.append(os.path.join(img_dir, img_name))
-                lab_path = os.path.join(lab_dir, img_name).replace('.jpg', '.txt').replace('.png', '.txt')
-                self.lab_paths.append(lab_path)
-
-    def __getitem__(self, idx):
-        assert idx <= len(self), 'index range error'
-        # img_path = os.path.join(self.img_dir, self.img_names[idx])
-        img_path = self.img_paths[idx]
-        # lab_path = os.path.join(self.lab_dir, self.img_names[idx]).replace('.jpg', '.txt').replace('.png', '.txt')
-        lab_path = self.lab_paths[idx]
-        image = Image.open(img_path).convert('RGB')
-
-        if self.lab_dirs is not None:
-            if os.path.getsize(lab_path):       # check to see if label file contains data.
-                label = np.loadtxt(lab_path)
-            else:
-                label = np.ones([5])
-
-            label = torch.from_numpy(label).float()
-            if label.dim() == 1:
-                label = label.unsqueeze(0)
-            label = [label]
-        elif self.lab_fix is not None:
-            label = [self.lab_fix.clone()]
-        else:
-            label = None
-
-        image, label = self.pad_and_scale(image, label)
-        transform = transforms.ToTensor()
-        image = transform(image)
-        if self.lab_dirs is not None or self.lab_fix is not None:
-            raise NotImplementedError('what even is this dataset')
-            label = self.pad_lab(label)
-            if self.modifier is not None:
-                return self.modifier(image, label[0])
-            else:
-                return image, label[0]
-        else:
-            if self.modifier is not None:
-                image, _ = self.modifier(image, None)
-            return image, lab_path
+    def pad_lab(self, label):
+        padded_lab = []
+        for lab in label:
+            pad_size = 15 - lab.shape[0]  # todo: maybe go pack to max_n_labels
+            padded_lab.append(F.pad(lab, (0, 0, 0, pad_size), value=-1) if pad_size > 0 else lab)
+        return padded_lab

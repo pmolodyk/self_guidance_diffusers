@@ -1,0 +1,33 @@
+prompt: space clothes pattern
+
+n: 256
+
+adv_scale_schedule_dict: [
+  {0: 1000},
+  {0: 1000, 125: 750},
+  {0: 1000, 150: 750},
+  {0: 1000, 175: 750},
+  {0: 1000, 200: 750},
+  {0: 1000, 225: 750},
+  {0: 1000, 125: 500},
+  {0: 1000, 150: 500},
+  {0: 1000, 175: 500},
+  {0: 1000, 200: 500},
+  {0: 1000, 225: 500},
+]
+
+type: adv
+
+device: cuda:0
+
+guidance_scale: 7.5
+
+fix_appearance: false
+
+fix_attention: false
+
+adv_model: detr
+
+check_free: false
+
+ap_models: ['detr']
